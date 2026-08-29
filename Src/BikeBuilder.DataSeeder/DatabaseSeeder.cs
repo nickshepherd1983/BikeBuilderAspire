@@ -128,7 +128,29 @@ public static class DatabaseSeeder
       await throttle.WaitAsync();
       try
       {
-        await ratingsContainer.CreateItemAsync(document, new PartitionKey(document.BikeBuildId));
+        // An overloaded emulator (constrained CI runners) intermittently times out single
+        // writes - retry the transient statuses with backoff instead of failing the whole
+        // seed. A timed-out write may still have landed server-side, so a Conflict on a
+        // retry counts as success.
+        for (var attempt = 1; ; attempt++)
+        {
+          try
+          {
+            await ratingsContainer.CreateItemAsync(document, new PartitionKey(document.BikeBuildId));
+            break;
+          }
+          catch (CosmosException ex) when (attempt > 1 && ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+          {
+            break;
+          }
+          catch (CosmosException ex) when (attempt < 5 && ex.StatusCode
+              is System.Net.HttpStatusCode.RequestTimeout
+              or System.Net.HttpStatusCode.TooManyRequests
+              or System.Net.HttpStatusCode.ServiceUnavailable)
+          {
+            await Task.Delay(TimeSpan.FromSeconds(attempt));
+          }
+        }
       }
       finally
       {
