@@ -50,7 +50,10 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
         ["IntegrationTest=true", "DcpPublisher:RandomizePorts=false"]);
     _app = await builder.BuildAsync();
 
-    using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+    // 20 minutes: a cold CI runner pulls every emulator image (SQL Server 2025, Azurite,
+    // Service Bus + its SQL Edge companion, Cosmos vNext) before anything can start; 10
+    // proved too tight. Local runs with cached images start in a fraction of this.
+    using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(20));
     await _app.StartAsync(cts.Token);
 
     // api healthy => SQL up, blob container and Service Bus queue provisioned. ratings
