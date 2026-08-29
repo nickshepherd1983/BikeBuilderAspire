@@ -132,7 +132,7 @@ public static class DatabaseSeeder
         // writes - retry the transient statuses with backoff instead of failing the whole
         // seed. A timed-out write may still have landed server-side, so a Conflict on a
         // retry counts as success.
-        for (var attempt = 1; ; attempt++)
+        for (var attempt = 1; attempt <= 5; attempt++)
         {
           try
           {
