@@ -1,0 +1,111 @@
+@page "/bikebuilds/{Id:int}/edit"
+@attribute [Authorize]
+
+<PageTitle>Edit Bike Build</PageTitle>
+
+@if (_bikeBuild is null)
+{
+    <MudProgressCircular Indeterminate="true" Class="mt-4" />
+}
+else
+{
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.h4">Edit Bike Build</MudText>
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="GoBackToList">Back to list</MudButton>
+    </MudStack>
+
+    <MudPaper Class="pa-4 mb-6" Elevation="1">
+        <MudForm>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_name" Label="Name" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudDatePicker @bind-Date="_date" Label="Date" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="5">
+                    <MudTextField @bind-Value="_description" Label="Description" />
+                </MudItem>
+            </MudGrid>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveBikeBuild" Class="mt-3">Save</MudButton>
+        </MudForm>
+    </MudPaper>
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.h5">Components</MudText>
+        <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h6">Total: @FormatCost(_bikeBuild.Total)</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddBikeBuildComponent">
+                Add Component
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    <MudTable T="BikeBuildComponentMessage" @ref="_componentsTable" ServerData="LoadBikeBuildComponentsAsync" RowsPerPage="20" Hover="true" Striped="true">
+        <ToolBarContent>
+            @* Placeholder rather than Label so dialog-scoped GetByLabel test locators stay unambiguous. *@
+            <MudTextField T="string" @bind-Value="_componentSearch" Placeholder="Search components"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Clearable="true" Immediate="true" DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ComponentSearchChanged" Class="mt-0" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel T="BikeBuildComponentMessage" SortLabel="component">Component</MudTableSortLabel></MudTh>
+            <MudTh>Information</MudTh>
+            <MudTh><MudTableSortLabel T="BikeBuildComponentMessage" SortLabel="quantity">Quantity</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="BikeBuildComponentMessage" SortLabel="date">Date</MudTableSortLabel></MudTh>
+            <MudTh Style="width: 1%;"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Component">@context.ComponentName</MudTd>
+            <MudTd DataLabel="Information"><ComponentInformationDisplay Json="@context.ComponentInformationJson" /></MudTd>
+            <MudTd DataLabel="Quantity">@context.Quantity</MudTd>
+            <MudTd DataLabel="Date">@context.Date.ToDateTimeOffset().ToString("d")</MudTd>
+            <MudTd DataLabel="">
+                <MudStack Row="true" Spacing="1">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditBikeBuildComponent(context)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => RemoveBikeBuildComponent(context)" />
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No components added yet.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="[10, 20, 50]" />
+        </PagerContent>
+    </MudTable>
+
+    <MudPaper Class="pa-4 mb-6 mt-6" Elevation="1">
+        <MudText Typo="Typo.h5" Class="mb-2">Ratings</MudText>
+        @if (_ratings is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (_ratings.Count == 0)
+        {
+            <MudText>No ratings yet.</MudText>
+        }
+        else
+        {
+            <MudStack Spacing="3">
+                @foreach (var rating in _ratings)
+                {
+                    <div>
+                        <MudRating SelectedValue="@rating.Stars" ReadOnly="true" />
+                        @if (!string.IsNullOrEmpty(rating.Comment))
+                        {
+                            <MudText Typo="Typo.body2">@rating.Comment</MudText>
+                        }
+                        <MudText Typo="Typo.caption">@rating.UserName — @rating.CreatedAt.ToLocalTime().ToString("g")</MudText>
+                    </div>
+                }
+            </MudStack>
+        }
+
+        <MudText Typo="Typo.h6" Class="mt-4">Leave a rating</MudText>
+        <MudRating @bind-SelectedValue="_newRatingStars" />
+        <MudTextField @bind-Value="_newRatingComment" Label="Comment" Lines="3" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="SubmitRating">Submit rating</MudButton>
+    </MudPaper>
+}

@@ -1,0 +1,74 @@
+@page "/components"
+@attribute [Authorize]
+
+<PageTitle>Components</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Components</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddComponent">
+        Add Component
+    </MudButton>
+</MudStack>
+
+<MudTable T="ComponentMessage" @ref="_table" ServerData="LoadComponentsAsync" RowsPerPage="20" Hover="true" Striped="true">
+    <ToolBarContent>
+        @* Placeholder rather than Label so dialog-scoped GetByLabel test locators stay unambiguous. *@
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Search name or SKU"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true" Immediate="true" DebounceInterval="300"
+                      OnDebounceIntervalElapsed="SearchChanged" Class="mt-0" />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh Style="width: 1%;"></MudTh>
+        <MudTh><MudTableSortLabel T="ComponentMessage" SortLabel="name" InitialDirection="SortDirection.Ascending">Name</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel T="ComponentMessage" SortLabel="cost">Cost</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel T="ComponentMessage" SortLabel="sku">SKU</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel T="ComponentMessage" SortLabel="manufacturer">Manufacturer</MudTableSortLabel></MudTh>
+        <MudTh>Information</MudTh>
+        <MudTh>Description</MudTh>
+        <MudTh Style="width: 1%;"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Image">
+            @if (context.HasImage)
+            {
+                <img src="@_imageClient.GetImageUrl(context.Id, context.ImageVersion)"
+                     alt="@context.Name"
+                     style="width:48px;height:48px;object-fit:cover;border-radius:4px;" />
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Image" Color="Color.Default" />
+            }
+        </MudTd>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Cost">@FormatCost(context.Cost)</MudTd>
+        <MudTd DataLabel="SKU">@context.Sku</MudTd>
+        <MudTd DataLabel="Manufacturer">@context.Manufacturer</MudTd>
+        <MudTd DataLabel="Information"><ComponentInformationDisplay Json="@context.ComponentInformationJson" /></MudTd>
+        <MudTd DataLabel="Description">@context.Description</MudTd>
+        <MudTd DataLabel="">
+            <MudStack Row="true" Spacing="1">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" aria-label="Edit" OnClick="() => EditComponent(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteComponent(context)" />
+                <MudFileUpload T="IBrowserFile" Accept=".jpg,.jpeg,.png,.gif" MaxFileSize="5_000_000"
+                               FilesChanged="(file) => UploadImage(context, file)">
+                    <CustomContent Context="uploadCtx">
+                        <MudIconButton Icon="@Icons.Material.Filled.Upload" Size="Size.Small" Disabled="@_isUploading"
+                                       OnClick="@(() => uploadCtx.OpenFilePickerAsync())" />
+                    </CustomContent>
+                </MudFileUpload>
+                @if (context.HasImage)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.HideImage" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteImage(context)" />
+                }
+            </MudStack>
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No components yet. Add one to get started.</MudText>
+    </NoRecordsContent>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="[10, 20, 50]" />
+    </PagerContent>
+</MudTable>

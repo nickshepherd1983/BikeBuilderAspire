@@ -1,0 +1,182 @@
+using System.Diagnostics;
+using Aspire.Hosting;
+using Aspire.Hosting.Testing;
+using BikeBuilder.API.Data;
+using BikeBuilder.DataSeeder;
+using Microsoft.EntityFrameworkCore;
+
+namespace BikeBuilder.Test.Integration;
+
+// Boots the whole system through the Aspire AppHost in test mode (IntegrationTest=true):
+// SQL Server, Azurite, the Service Bus and Cosmos emulators, a stub OIDC issuer standing in
+// for Auth0, and all four apps - then seeds realistic data and hands Playwright a browser.
+public sealed class BikeBuilderAppFixture : IAsyncLifetime
+{
+  public const string OidcTestUsername = "testuser";
+  public const string OidcTestPassword = "password";
+
+  // Fixed ports, defined in the AppHost's test branch and baked into the WASM app's
+  // wwwroot/appsettings.IntegrationTest.json - the browser can't read dynamic Aspire
+  // endpoints, so the whole test topology agrees on these up front.
+  //
+  // 127.0.0.1 rather than "localhost" - on this Windows/Docker Desktop setup, the .NET
+  // HttpClient and the Chromium browser Playwright launches were observed resolving
+  // "localhost" differently, with only one of the two reliably connecting.
+  public string ApiBaseAddress => "http://127.0.0.1:18100";
+  public string WebBaseAddress => "http://127.0.0.1:18200";
+  public string WebPublicBaseAddress => "http://127.0.0.1:18300";
+  public string RatingsBaseAddress => "http://127.0.0.1:18500";
+
+  public IBrowser Browser { get; private set; } = null!;
+
+  public static readonly string VideosDir = Path.Combine(AppContext.BaseDirectory, "TestResults", "videos");
+
+  DistributedApplication _app = null!;
+  IPlaywright _playwright = null!;
+
+  public async Task InitializeAsync()
+  {
+    var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+    if (exitCode != 0)
+    {
+      throw new InvalidOperationException($"playwright install failed with exit code {exitCode}");
+    }
+
+    // RandomizePorts=false: the testing builder randomizes endpoint ports by default, but
+    // the WASM app's baked-in config (and the OIDC issuer the tokens are minted for)
+    // require the fixed 18xxx ports the AppHost's test branch pins.
+    var builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.BikeBuilder_AppHost>(
+        ["IntegrationTest=true", "DcpPublisher:RandomizePorts=false"]);
+    _app = await builder.BuildAsync();
+
+    using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+    await _app.StartAsync(cts.Token);
+
+    // api healthy => SQL up, blob container and Service Bus queue provisioned. ratings
+    // healthy => Functions host + worker up and the Cosmos database/container provisioned
+    // (its probe hits the anonymous warmup endpoint, which reads Cosmos).
+    var notifications = _app.ResourceNotifications;
+    await Task.WhenAll(
+        notifications.WaitForResourceHealthyAsync("oidc-mock", cts.Token),
+        notifications.WaitForResourceHealthyAsync("api", cts.Token),
+        notifications.WaitForResourceHealthyAsync("ratings", cts.Token),
+        notifications.WaitForResourceHealthyAsync("web", cts.Token),
+        notifications.WaitForResourceHealthyAsync("web-public", cts.Token));
+
+    // Seed the same realistic dataset local dev uses (1000+ components, 100 builds,
+    // 1-30 ratings each) so the tests exercise pagination, search, and summaries
+    // against real volumes rather than an empty database.
+    var sqlConnectionString = await _app.GetConnectionStringAsync("BikeBuilderDb", cts.Token)
+        ?? throw new InvalidOperationException("No connection string for BikeBuilderDb.");
+    var cosmosConnectionString = await _app.GetConnectionStringAsync("cosmos", cts.Token)
+        ?? throw new InvalidOperationException("No connection string for cosmos.");
+
+    var options = new DbContextOptionsBuilder<BikeBuilderDbContext>()
+        .UseSqlServer(sqlConnectionString)
+        .Options;
+    await using (var db = new BikeBuilderDbContext(options))
+    {
+      // The API (running as Development) already migrates at startup; this is an idempotent
+      // safety net so seeding never races an unmigrated schema.
+      await db.Database.MigrateAsync();
+
+      using var cosmosClient = DatabaseSeeder.CreateEmulatorCosmosClient(cosmosConnectionString);
+
+      Microsoft.Azure.Cosmos.Container? ratingsContainer = null;
+      // The container is provisioned by the AppHost, but the emulator's data plane can lag
+      // its readiness signal - retry briefly rather than race it.
+      await WaitUntilSucceedsAsync(
+          async () => ratingsContainer = await DatabaseSeeder.EnsureRatingsContainerAsync(cosmosClient),
+          timeoutSeconds: 120);
+
+      await DatabaseSeeder.SeedAsync(db, ratingsContainer!, new Random(20260827));
+    }
+
+    _playwright = await Playwright.CreateAsync();
+    // Set HEADED=1 to watch the browser while the test runs (e.g. `$env:HEADED=1` in
+    // PowerShell before `dotnet test`, or via .runsettings). Debugging the test (Visual
+    // Studio Test Explorer "Debug") attaches a debugger, so that runs headed too.
+    var headed = Environment.GetEnvironmentVariable("HEADED") == "1" || Debugger.IsAttached;
+    Browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+    {
+      Headless = !headed,
+      SlowMo = headed ? 250 : 0,
+      // Chrome's speculative background-networking features (preconnect, DNS/network
+      // prediction, connection warm-up heuristics) have been observed interacting badly
+      // with this environment's proxied loopback ports, surfacing as intermittent
+      // ERR_CONNECTION_REFUSED on the app's own gRPC-Web calls despite the same origin
+      // being reachable via a plain fetch moments before or after - disable that class of
+      // feature outright rather than chase it further.
+      Args =
+        [
+            "--disable-background-networking",
+                "--disable-features=NetworkPrediction,PreconnectToSearch",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+                "--disable-ipc-flooding-protection",
+                "--no-first-run",
+            ],
+    });
+  }
+
+  /// <summary>
+  /// Creates a page in a context that records video to TestResults/videos. Playwright only
+  /// finalizes the video when the context closes, so callers must dispose the page via
+  /// <see cref="SaveVideoAsync"/> (which closes the context) rather than page.CloseAsync().
+  /// </summary>
+  public async Task<IPage> CreatePageAsync()
+  {
+    var context = await Browser.NewContextAsync(new()
+    {
+      RecordVideoDir = VideosDir,
+      RecordVideoSize = new() { Width = 1280, Height = 720 }
+    });
+    return await context.NewPageAsync();
+  }
+
+  /// <summary>Closes the page's context (finalizing the recording) and renames the video.</summary>
+  public static async Task SaveVideoAsync(IPage page, string name)
+  {
+    await page.Context.CloseAsync();
+    if (page.Video is not null)
+    {
+      await page.Video.SaveAsAsync(Path.Combine(VideosDir, $"{name}.webm"));
+      await page.Video.DeleteAsync();
+    }
+  }
+
+  static async Task WaitUntilSucceedsAsync(Func<Task> action, int timeoutSeconds = 90)
+  {
+    var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+    while (true)
+    {
+      try
+      {
+        await action();
+        return;
+      }
+      catch (Exception ex)
+      {
+        if (DateTime.UtcNow >= deadline)
+          throw new InvalidOperationException($"Action did not succeed within {timeoutSeconds}s.", ex);
+
+        await Task.Delay(TimeSpan.FromSeconds(2));
+      }
+    }
+  }
+
+  public async Task DisposeAsync()
+  {
+    // InitializeAsync may have thrown partway through, leaving later fields unset - guard
+    // each teardown step so a partial-startup failure doesn't also mask a NullReferenceException.
+    if (Browser is not null)
+      await Browser.CloseAsync();
+
+    _playwright?.Dispose();
+
+    // Tears down DCP and every container/app the AppHost started.
+    if (_app is not null)
+      await _app.DisposeAsync();
+  }
+}

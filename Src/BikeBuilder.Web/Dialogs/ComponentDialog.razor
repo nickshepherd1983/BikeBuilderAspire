@@ -1,0 +1,38 @@
+<MudDialog>
+    <TitleContent>@Title</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_name" Label="Name" Required="true" RequiredError="Name is required" />
+            <MudTextField @bind-Value="_cost" Label="Cost" Required="true" RequiredError="Cost is required"
+                          Validation="@(new Func<string, string?>(ValidateCost))" Class="mt-3" Adornment="Adornment.Start" AdornmentText="$" />
+            <MudTextField @bind-Value="_sku" Label="SKU" Class="mt-3" />
+            <MudSelect T="Manufacturer" @bind-Value="_manufacturer" Label="Manufacturer" Class="mt-3">
+                @foreach (var manufacturer in _manufacturers)
+                {
+                    <MudSelectItem T="Manufacturer" Value="manufacturer">@manufacturer</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="Type" Value="_informationType" ValueChanged="OnInformationTypeChanged" Label="Information Type" Class="mt-3"
+                       ToStringFunc="@(t => t is null ? "None" : ComponentInformationEditorRegistry.DisplayNameFor(t))">
+                <MudSelectItem T="Type" Value="null">None</MudSelectItem>
+                @foreach (var (type, displayName) in ComponentInformationEditorRegistry.KnownTypes)
+                {
+                    <MudSelectItem T="Type" Value="type">@displayName</MudSelectItem>
+                }
+            </MudSelect>
+            @if (_information is not null)
+            {
+                @* @key tears the editor down on type switch so stale field state can't leak. *@
+                <div @key="_information">
+                    <DynamicComponent Type="ComponentInformationEditorRegistry.EditorFor(_information.GetType())"
+                                      Parameters="@(new Dictionary<string, object> { [nameof(ComponentInformationEditorBase.Model)] = _information })" />
+                </div>
+            }
+            <MudTextField @bind-Value="_description" Label="Description" Lines="6" Class="mt-3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>

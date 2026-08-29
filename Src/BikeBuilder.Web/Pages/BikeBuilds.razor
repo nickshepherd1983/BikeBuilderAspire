@@ -1,0 +1,50 @@
+@page "/bikebuilds"
+@attribute [Authorize]
+
+<PageTitle>Bike Builds</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Bike Builds</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateBikeBuild">
+        Create Bike Build
+    </MudButton>
+</MudStack>
+
+<MudTable T="BikeBuildMessage" @ref="_table" ServerData="LoadBikeBuildsAsync" RowsPerPage="20" Hover="true" Striped="true">
+    <ToolBarContent>
+        @* Placeholder rather than Label so dialog-scoped GetByLabel test locators stay unambiguous. *@
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Search name or description"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true" Immediate="true" DebounceInterval="300"
+                      OnDebounceIntervalElapsed="SearchChanged" Class="mt-0" />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh><MudTableSortLabel T="BikeBuildMessage" SortLabel="name">Name</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel T="BikeBuildMessage" SortLabel="date" InitialDirection="SortDirection.Descending">Date</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel T="BikeBuildMessage" SortLabel="description">Description</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel T="BikeBuildMessage" SortLabel="total">Total</MudTableSortLabel></MudTh>
+        <MudTh>Ratings</MudTh>
+        <MudTh>Average</MudTh>
+        <MudTh Style="width: 1%;"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Date">@context.Date.ToDateTimeOffset().ToString("d")</MudTd>
+        <MudTd DataLabel="Description">@context.Description</MudTd>
+        <MudTd DataLabel="Total">@FormatCost(context.Total)</MudTd>
+        <MudTd DataLabel="Ratings">@RatingCountFor(context.Id)</MudTd>
+        <MudTd DataLabel="Average">@AverageRatingFor(context.Id)</MudTd>
+        <MudTd DataLabel="">
+            <MudStack Row="true" Spacing="1">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditBikeBuild(context.Id)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteBikeBuild(context)" />
+            </MudStack>
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No bike builds yet. Create one to get started.</MudText>
+    </NoRecordsContent>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="[10, 20, 50]" />
+    </PagerContent>
+</MudTable>

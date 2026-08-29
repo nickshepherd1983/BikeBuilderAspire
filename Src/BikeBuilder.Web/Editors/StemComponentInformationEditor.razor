@@ -1,0 +1,4 @@
+@inherits ComponentInformationEditor<StemComponentInformation>
+
+<MudNumericField T="int" Value="Value.LengthMm.Value" ValueChanged="@((int v) => Value.LengthMm = new StemLengthMm(v))"
+                 Label="Length (mm)" Min="StemLengthMm.Min" Max="StemLengthMm.Max" Class="mt-3" />

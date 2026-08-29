@@ -1,0 +1,40 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Persists the generated SQL Server password across runs, matching the persistent
+         data volume - without it every AppHost run would mint a new password the existing
+         volume's server doesn't accept. -->
+    <UserSecretsId>bikebuilder-apphost</UserSecretsId>
+    <!-- The optional Aspire CLI bundle only matters for `aspire`-CLI-driven workflows;
+         VS F5 and `dotnet run` work without it. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Azure.CosmosDB" Version="13.5.3" />
+    <PackageReference Include="Aspire.Hosting.Azure.Functions" Version="13.5.3" />
+    <PackageReference Include="Aspire.Hosting.Azure.ServiceBus" Version="13.5.3" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" Version="13.5.3" />
+    <PackageReference Include="Aspire.Hosting.SqlServer" Version="13.5.3" />
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.33.0.1635">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A real compile reference (not an Aspire resource): the AppHost reads the queue name
+         from the shared contracts. -->
+    <ProjectReference Include="..\BikeBuilder.Contracts\BikeBuilder.Contracts.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="..\BikeBuilder.API\BikeBuilder.API.csproj" />
+    <ProjectReference Include="..\BikeBuilder.API.Ratings\BikeBuilder.API.Ratings.csproj" />
+    <ProjectReference Include="..\BikeBuilder.DataSeeder\BikeBuilder.DataSeeder.csproj" />
+    <ProjectReference Include="..\BikeBuilder.Web\BikeBuilder.Web.csproj" />
+    <ProjectReference Include="..\BikeBuilder.Web.Public\BikeBuilder.Web.Public.csproj" />
+  </ItemGroup>
+
+</Project>

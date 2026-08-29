@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build solution
+        run: dotnet build BikeBuilder.slnx
+
+  integration-test:
+    needs: build
+    runs-on: ubuntu-latest
+    # The Aspire testing host starts SQL Server, Azurite, and the Service Bus / Cosmos
+    # emulators plus a stub OIDC issuer - slow on a cold runner, so give it headroom.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Aspire launches the Functions app (BikeBuilder.API.Ratings) through `func start`.
+      - name: Install Azure Functions Core Tools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Build test project
+        run: dotnet build Src/BikeBuilder.Test.Integration
+
+      - name: Install Playwright browsers
+        run: pwsh Src/BikeBuilder.Test.Integration/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
+
+      - name: Run integration tests
+        run: dotnet test Src/BikeBuilder.Test.Integration --no-build --logger "console;verbosity=minimal"
+
+      # Failure screenshots + console logs, and the Playwright videos of every run.
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: Src/BikeBuilder.Test.Integration/bin/Debug/net10.0/TestResults/
+          if-no-files-found: ignore

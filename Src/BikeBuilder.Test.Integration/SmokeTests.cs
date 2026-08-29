@@ -1,0 +1,154 @@
+﻿namespace BikeBuilder.Test.Integration;
+
+[Collection("BikeBuilderApp")]
+public class SmokeTests(BikeBuilderAppFixture fixture)
+{
+  [Fact]
+  public async Task Can_create_component_with_image_build_bike_rate_it_and_see_notifications()
+  {
+    var page = await fixture.CreatePageAsync();
+    var notificationPage = await fixture.CreatePageAsync();
+    var consoleMessages = new List<string>();
+    page.Console += (_, msg) => consoleMessages.Add($"[{msg.Type}] {msg.Text}");
+    page.PageError += (_, error) => consoleMessages.Add($"[pageerror] {error}");
+
+    try
+    {
+      await RunScenarioAsync(page, notificationPage);
+    }
+    catch
+    {
+      var resultsDir = Path.Combine(AppContext.BaseDirectory, "TestResults");
+      Directory.CreateDirectory(resultsDir);
+      var id = Guid.NewGuid().ToString("N");
+      await page.ScreenshotAsync(new() { Path = Path.Combine(resultsDir, $"failure-{id}.png"), FullPage = true });
+      await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"failure-{id}-console.log"), consoleMessages);
+      throw;
+    }
+    finally
+    {
+      await BikeBuilderAppFixture.SaveVideoAsync(page, "full-smoke-app");
+      await BikeBuilderAppFixture.SaveVideoAsync(notificationPage, "full-smoke-toasts");
+    }
+  }
+
+  async Task RunScenarioAsync(IPage page, IPage notificationPage)
+  {
+    var components = new ComponentsPage(page, fixture.WebBaseAddress);
+    var bikeBuilds = new BikeBuildsPage(page, fixture.WebBaseAddress);
+    var notifications = new NotificationHomePage(notificationPage, fixture.WebPublicBaseAddress);
+
+    // The fixture pre-seeds 1000+ components and the grid is paginated in name order, so
+    // the test component's name must sort ahead of every seeded brand to stay on page 1.
+    const string frameName = "AAA Carbon Frame";
+    const string buildName = "Full Smoke Ride";
+
+    // First navigation drives the stub OIDC login flow - this is the "log in" step.
+    await components.GotoAsync();
+    await components.AddComponentAsync(frameName, "899.99", "Lightweight frame", sku: "CF-1001", manufacturer: "Hope");
+    Assert.True(await components.RowContainsAsync(frameName, "CF-1001", "Hope"));
+
+    var imagePath = Path.Combine(AppContext.BaseDirectory, "TestAssets", "test-image.png");
+    await components.UploadImageToRowAsync(frameName, imagePath);
+    Assert.True(await components.HasThumbnailAsync(frameName));
+
+    // Round-trip a polymorphic ComponentInformation: dialog -> JSON -> gRPC -> EF -> SQL and
+    // back through the edit dialog. (The frame above covers the "None" path.)
+    const string tireName = "AAA Trail Tire";
+    await components.AddComponentAsync(tireName, "79.99", "Sticky front tire",
+        informationType: "Tire",
+        informationSelects: new Dictionary<string, string> { ["Size"] = "29", ["Width (inches)"] = "2.4" });
+
+    // The grid's Information column renders the type badge + spec chips.
+    Assert.True(await components.RowContainsAsync(tireName, "Tire", "Size: 29", "Width: 2.4"));
+
+    var tireDialog = await components.OpenEditDialogAsync(tireName);
+    Assert.Contains("Tire", await components.GetInformationFieldTextAsync(tireDialog, "Information Type"));
+    Assert.Contains("29", await components.GetInformationFieldTextAsync(tireDialog, "Size"));
+    Assert.Contains("2.4", await components.GetInformationFieldTextAsync(tireDialog, "Width (inches)"));
+    await components.CancelDialogAsync(tireDialog);
+
+    // Server-side search: the frame's SKU matches only the frame; clearing restores the grid.
+    await components.SearchAsync("CF-1001");
+    await Expect(components.Row(frameName)).ToBeVisibleAsync(new() { Timeout = 8000 });
+    await Expect(components.Row(tireName)).ToBeHiddenAsync(new() { Timeout = 8000 });
+    await components.ClearSearchAsync();
+    await Expect(components.Row(tireName)).ToBeVisibleAsync(new() { Timeout = 8000 });
+
+    // Server-side sort: Name starts ascending, so one click flips it descending and the "AAA"
+    // rows can no longer be on page 1 of 1000+ names. A second click un-sorts, which the
+    // server maps back to the default Name-ascending order.
+    await components.SortByAsync("Name");
+    await Expect(components.Row(frameName)).ToBeHiddenAsync(new() { Timeout = 8000 });
+    await components.SortByAsync("Name");
+    await Expect(components.Row(frameName)).ToBeVisibleAsync(new() { Timeout = 8000 });
+
+    // Connect to Web.Public before creating the BikeBuild so its SignalR connection is
+    // already established and can't miss any of the notifications below.
+    await notifications.GotoAsync();
+
+    await bikeBuilds.GotoAsync();
+    var editPage = await bikeBuilds.CreateBikeBuildAsync(buildName, "Build for full smoke test");
+
+    // Only CreateBikeBuild publishes a notification event (not the per-component attach
+    // calls below), so check for the toast right after creation.
+    await notifications.WaitForNotificationAsync($"New bike build created: {buildName}");
+
+    await editPage.AddComponentAsync(frameName, quantity: 1);
+
+    // Three tires exceed the recommended two: the dialog warns politely but still saves.
+    await editPage.AddComponentAsync(tireName, quantity: 3, expectWarningContains: "at most 2 Tires");
+
+    var attached = await editPage.GetAttachedComponentNamesAsync();
+    Assert.Contains(frameName, attached);
+    Assert.Contains(tireName, attached);
+
+    // Server-side search on the build's own components grid.
+    await editPage.SearchComponentsAsync(frameName);
+    await Expect(editPage.ComponentRow(tireName)).ToBeHiddenAsync(new() { Timeout = 8000 });
+    await Expect(editPage.ComponentRow(frameName)).ToBeVisibleAsync(new() { Timeout = 8000 });
+    await editPage.ClearComponentSearchAsync();
+    await Expect(editPage.ComponentRow(tireName)).ToBeVisibleAsync(new() { Timeout = 8000 });
+
+    // Server-side sort: by Quantity ascending the frame (qty 1) precedes the tire (qty 3).
+    await editPage.SortByAsync("Quantity");
+    await Expect(editPage.QuantityColumn).ToHaveTextAsync(new[] { "1", "3" });
+
+    // Check each rating's toast right after submitting it - snackbar toasts auto-dismiss,
+    // so batching the checks at the end would race the first toast's timeout.
+    // The author name comes from the stub issuer's "name" claim for the test user.
+    await editPage.AddRatingAsync(stars: 4, "Great climbing bike");
+    await editPage.WaitForRatingAsync("Great climbing bike", "Test User");
+    await notifications.WaitForNotificationAsync($"New 4-star rating for {buildName}");
+
+    await editPage.AddRatingAsync(stars: 5, "Even better downhill");
+    await editPage.WaitForRatingAsync("Even better downhill", "Test User");
+    await notifications.WaitForNotificationAsync($"New 5-star rating for {buildName}");
+
+    // Back on the grid, the Ratings column should show both ratings and the Average column
+    // their mean (4 and 5 stars). Expect polls, so the async summary fetch after the grid
+    // renders can't race these assertions.
+    await bikeBuilds.GotoAsync();
+    await Expect(bikeBuilds.RatingsCountCell(buildName)).ToHaveTextAsync("2");
+    await Expect(bikeBuilds.AverageRatingCell(buildName)).ToHaveTextAsync("4.5");
+    await Expect(bikeBuilds.Pager).ToBeVisibleAsync();
+
+    // Server-side search on the builds grid: exactly the created build matches (the seeded
+    // 100 builds all use theme+rig names, so "Full Smoke Ride" is unique).
+    await bikeBuilds.SearchAsync(buildName);
+    await Expect(bikeBuilds.Row(buildName)).ToBeVisibleAsync(new() { Timeout = 8000 });
+    await Expect(bikeBuilds.Rows).ToHaveCountAsync(1, new() { Timeout = 8000 });
+    await bikeBuilds.ClearSearchAsync();
+    await Expect(bikeBuilds.Rows).Not.ToHaveCountAsync(1, new() { Timeout = 8000 });
+
+    // Total is the one sort computed in SQL (a correlated cost*quantity SUM) - click it and
+    // prove page 1 actually arrives ordered by it. RetryHelper absorbs the reload race.
+    await bikeBuilds.SortByAsync("Total");
+    await RetryHelper.RunAsync(async () =>
+    {
+      var totals = await bikeBuilds.GetTotalsAsync();
+      Assert.Equal(20, totals.Count);
+      Assert.Equal(totals.OrderBy(t => t), totals);
+    }, maxAttempts: 4);
+  }
+}

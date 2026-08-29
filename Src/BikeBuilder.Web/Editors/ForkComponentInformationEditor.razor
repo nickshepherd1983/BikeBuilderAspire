@@ -1,0 +1,4 @@
+@inherits ComponentInformationEditor<ForkComponentInformation>
+
+<MudNumericField T="int" Value="Value.TravelMm.Value" ValueChanged="@((int v) => Value.TravelMm = new TravelMm(v))"
+                 Label="Travel (mm)" Min="TravelMm.Min" Max="TravelMm.Max" Class="mt-3" />
