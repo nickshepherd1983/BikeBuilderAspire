@@ -36,6 +36,16 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # The emulator images (SQL Server 2025, Cosmos, Service Bus + companion, Azurite) plus
+      # Chromium total ~8GB with extraction overhead - more than the runner's free disk.
+      # Docker pulls then fail mid-layer and the Aspire orchestrator retries forever, which
+      # surfaces as the app host hanging at startup.
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+          df -h /
+
       # Aspire launches the Functions app (BikeBuilder.API.Ratings) through `func start`.
       # Installed straight from the pinned GitHub release: the npm package install needs
       # working registry auth on some runners (E401) and apt needs the Microsoft feed -
@@ -61,6 +71,9 @@ jobs:
       - name: Dump Docker state on failure
         if: failure()
         run: |
+          echo "==== disk ===="
+          df -h /
+          docker system df
           echo "==== docker ps -a ===="
           docker ps -a
           echo "==== docker images ===="
