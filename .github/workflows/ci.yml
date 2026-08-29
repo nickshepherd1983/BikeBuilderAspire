@@ -37,8 +37,15 @@ jobs:
           dotnet-version: 10.0.x
 
       # Aspire launches the Functions app (BikeBuilder.API.Ratings) through `func start`.
+      # Installed straight from the pinned GitHub release: the npm package install needs
+      # working registry auth on some runners (E401) and apt needs the Microsoft feed -
+      # the zip needs neither.
       - name: Install Azure Functions Core Tools
-        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+        run: |
+          curl -sSL -o /tmp/func.zip https://github.com/Azure/azure-functions-core-tools/releases/download/4.13.0/Azure.Functions.Cli.linux-x64.4.13.0.zip
+          unzip -q /tmp/func.zip -d "$HOME/func-cli"
+          chmod +x "$HOME/func-cli/func" "$HOME/func-cli/gozip"
+          echo "$HOME/func-cli" >> "$GITHUB_PATH"
 
       - name: Build test project
         run: dotnet build Src/BikeBuilder.Test.Integration
