@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using BikeBuilder.API.Data;
 using BikeBuilder.DataSeeder;
 using Microsoft.EntityFrameworkCore;
@@ -60,13 +62,24 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     // healthy => Functions host + worker up and the Cosmos database/container provisioned
     // (its probe hits the anonymous warmup endpoint, which reads Cosmos).
     var notifications = _app.ResourceNotifications;
-    await Task.WhenAll(
-        notifications.WaitForResourceHealthyAsync("oidc-mock", cts.Token),
-        notifications.WaitForResourceHealthyAsync("api", cts.Token),
-        notifications.WaitForResourceHealthyAsync("orders", cts.Token),
-        notifications.WaitForResourceHealthyAsync("ratings", cts.Token),
-        notifications.WaitForResourceHealthyAsync("web", cts.Token),
-        notifications.WaitForResourceHealthyAsync("web-public", cts.Token));
+    try
+    {
+      await Task.WhenAll(
+          notifications.WaitForResourceHealthyAsync("oidc-mock", cts.Token),
+          notifications.WaitForResourceHealthyAsync("api", cts.Token),
+          notifications.WaitForResourceHealthyAsync("orders", cts.Token),
+          notifications.WaitForResourceHealthyAsync("ratings", cts.Token),
+          notifications.WaitForResourceHealthyAsync("web", cts.Token),
+          notifications.WaitForResourceHealthyAsync("web-public", cts.Token));
+    }
+    catch
+    {
+      // Startup failures on CI are otherwise undiagnosable - the teardown deletes the
+      // orchestrator's session logs before the workflow can dump them, so capture each
+      // resource's output into TestResults (which CI uploads) while it still exists.
+      await DumpResourceLogsAsync();
+      throw;
+    }
 
     // Seed the same realistic dataset local dev uses (1000+ components, 100 builds,
     // 1-30 ratings each) so the tests exercise pagination, search, and summaries
@@ -153,6 +166,39 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     {
       await page.Video.SaveAsAsync(Path.Combine(VideosDir, $"{name}.webm"));
       await page.Video.DeleteAsync();
+    }
+  }
+
+  async Task DumpResourceLogsAsync()
+  {
+    var resultsDir = Path.Combine(AppContext.BaseDirectory, "TestResults");
+    Directory.CreateDirectory(resultsDir);
+    var loggerService = _app.Services.GetRequiredService<ResourceLoggerService>();
+
+    foreach (var resourceName in new[] { "oidc-mock", "api", "orders", "ratings", "web", "web-public" })
+    {
+      var lines = new List<string>();
+      try
+      {
+        // WatchAsync streams until the resource completes, so bound the replay of the
+        // backlog with a short timeout and keep whatever arrived.
+        using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await foreach (var batch in loggerService.WatchAsync(resourceName).WithCancellation(watchCts.Token))
+        {
+          foreach (var line in batch)
+            lines.Add(line.Content);
+        }
+      }
+      catch (OperationCanceledException)
+      {
+        // Expected - the stream stays open while the resource lives.
+      }
+      catch (Exception ex)
+      {
+        lines.Add($"(failed to capture logs: {ex.Message})");
+      }
+
+      await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"startup-{resourceName}.log"), lines);
     }
   }
 

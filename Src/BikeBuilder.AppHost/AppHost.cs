@@ -165,6 +165,10 @@ orders.WithHttpHealthCheck("/");
 
 var ratings = builder.AddAzureFunctionsProject<Projects.BikeBuilder_API_Ratings>("ratings")
     .WithHostStorage(storage)
+    // WithHostStorage wires the connection but doesn't gate startup: without this wait the
+    // Functions host can race Azurite on a slow machine and die on an unreachable
+    // AzureWebJobsStorage.
+    .WaitFor(storage)
     .WithReference(cosmos).WaitFor(ratingsContainer)
     .WithReference(serviceBus).WaitFor(serviceBus)
     .WithEnvironment("Auth0__Authority", isTest ? TestOidcIssuer : Auth0Authority)
