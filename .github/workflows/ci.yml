@@ -56,6 +56,20 @@ jobs:
       - name: Run integration tests
         run: dotnet test Src/BikeBuilder.Test.Integration --no-build --logger "console;verbosity=minimal"
 
+      # The Aspire testing host tears containers down on success; whatever is still here
+      # after a failure is what the fixture was stuck waiting on.
+      - name: Dump Docker state on failure
+        if: failure()
+        run: |
+          echo "==== docker ps -a ===="
+          docker ps -a
+          echo "==== docker images ===="
+          docker images
+          for c in $(docker ps -aq); do
+            echo "==== $(docker inspect --format '{{.Name}} status={{.State.Status}} exit={{.State.ExitCode}}' "$c") ===="
+            docker logs --tail 60 "$c" 2>&1 | tail -60
+          done
+
       # Failure screenshots + console logs, and the Playwright videos of every run.
       - name: Upload test artifacts
         if: always()
