@@ -66,6 +66,8 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
     // Change of heart: drop the bike build again, leaving a single-item order.
     await store.RemoveItemAsync(buildName);
     await Expect(store.CartItem(buildName)).ToBeHiddenAsync(new() { Timeout = 30_000 });
+    // ...and prove the RIGHT item survived the removal.
+    await Expect(store.CartItem(componentName)).ToBeVisibleAsync(new() { Timeout = 30_000 });
 
     await store.ProcessOrderAsync();
     await store.WaitForOrderConfirmationAsync(buyerName);
@@ -79,5 +81,14 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
 
     // Processing cleared the stored draft-order id, so the cart is empty again.
     await Expect(store.EmptyCartMessage).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+    // Back office: the signed-in web app's Orders page lists the placed order - buyer,
+    // status, and the single purchased item.
+    var ordersPage = new OrdersPage(wasmPage, fixture.WebBaseAddress);
+    await ordersPage.GotoAsync();
+    var orderRow = ordersPage.Row(buyerName);
+    await Expect(orderRow).ToBeVisibleAsync(new() { Timeout = 30_000 });
+    await Expect(orderRow.GetByText("Placed")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+    await Expect(orderRow.GetByText(componentName, new() { Exact = false }).First).ToBeVisibleAsync(new() { Timeout = 30_000 });
   }
 }

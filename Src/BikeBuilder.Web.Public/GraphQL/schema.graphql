@@ -5,6 +5,7 @@ schema {
 
 type Query {
   order(id: Int!): Order
+  orders: [Order!]!
 }
 
 type Mutation {
@@ -17,6 +18,16 @@ type Mutation {
   ): Order!
   removeOrderItem(orderId: Int!, orderItemId: Int!): Order!
   processOrder(orderId: Int!): Order!
+}
+
+"Defines when a policy shall be executed."
+enum ApplyPolicy {
+  "Before the resolver was executed."
+  BEFORE_RESOLVER
+  "After the resolver was executed."
+  AFTER_RESOLVER
+  "The policy is applied in the validation step before the execution."
+  VALIDATION
 }
 
 enum ProductType {

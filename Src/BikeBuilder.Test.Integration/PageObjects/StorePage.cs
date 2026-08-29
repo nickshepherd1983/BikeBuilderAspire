@@ -18,11 +18,15 @@ public class StorePage(IPage page, string baseUrl)
   // excludes it.
   ILocator ProductCards => page.Locator(".mud-card").Filter(new() { Has = page.GetByRole(AriaRole.Button, new() { Name = "Add to cart" }) });
 
-  public ILocator CartItem(string productName) => page.Locator(".mud-list-item").Filter(new() { HasText = productName });
+  // Every cart locator is scoped INSIDE the cart card: product names also appear in the
+  // catalog cards and toast messages, and a page-wide text match can pass against those.
+  ILocator CartCard => page.Locator(".mud-card").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Cart", Exact = true }) });
 
-  public ILocator CartTotal => page.GetByText(new System.Text.RegularExpressions.Regex(@"^Total: \$"));
+  public ILocator CartItem(string productName) => CartCard.Locator(".mud-list-item").Filter(new() { HasText = productName });
 
-  public ILocator EmptyCartMessage => page.GetByText("Your cart is empty.");
+  public ILocator CartTotal => CartCard.GetByText(new System.Text.RegularExpressions.Regex(@"^Total: \$"));
+
+  public ILocator EmptyCartMessage => CartCard.GetByText("Your cart is empty.");
 
   public async Task<string> GetFirstProductNameAsync() =>
       (await ProductCards.First.Locator("h6").InnerTextAsync()).Trim();
@@ -51,8 +55,10 @@ public class StorePage(IPage page, string baseUrl)
     await ProductCards.First.WaitForAsync();
   }
 
+  // Click the delete button INSIDE the named cart row (it's the row's only button) rather
+  // than matching aria-labels globally - immune to label churn while the list re-renders.
   public Task RemoveItemAsync(string productName) =>
-      page.GetByRole(AriaRole.Button, new() { Name = $"Remove {productName}" }).ClickAsync();
+      CartItem(productName).GetByRole(AriaRole.Button).ClickAsync();
 
   public Task ProcessOrderAsync() =>
       page.GetByRole(AriaRole.Button, new() { Name = "Process order" }).ClickAsync();

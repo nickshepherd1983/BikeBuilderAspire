@@ -84,4 +84,14 @@ builder.Services.AddScoped(sp =>
   return new RatingsClient(new HttpClient(handler) { BaseAddress = new Uri(ratingsApiBaseAddress) });
 });
 
+var ordersApiBaseAddress = builder.Configuration["OrdersApiBaseAddress"] ?? "https://localhost:7400";
+
+builder.Services.AddScoped(sp =>
+{
+  var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
+      .ConfigureHandler(authorizedUrls: [ordersApiBaseAddress]);
+  handler.InnerHandler = new HttpClientHandler();
+  return new OrdersClient(new HttpClient(handler) { BaseAddress = new Uri(ordersApiBaseAddress) });
+});
+
 await builder.Build().RunAsync();

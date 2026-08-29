@@ -2,6 +2,7 @@ using BikeBuilder.API.Orders.GraphQL;
 using BikeBuilder.API.Protos;
 using Grpc.Net.Client.Web;
 using HotChocolate.AspNetCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using OpenTelemetry.Trace;
 
 // Azure SDK messaging tracing (Service Bus send spans + traceparent stamping on the
@@ -62,9 +63,34 @@ builder.Services
     .ConfigurePrimaryHttpMessageHandler(() => new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()));
 builder.Services.AddScoped<CatalogPricingService>();
 
+// JWT bearer auth guards the back-office orders query; the guest-checkout operations stay
+// anonymous. Config-gated so standalone runs (EF design time, schema export) need no Auth0
+// settings - without them the protected field simply can't be executed.
+var auth0Authority = builder.Configuration["Auth0:Authority"];
+if (auth0Authority is not null)
+{
+  builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+      .AddJwtBearer(options =>
+      {
+        options.Authority = auth0Authority;
+        options.Audience = builder.Configuration["Auth0:Audience"];
+        // False only in the integration-test environment, where the stub OIDC issuer is plain http.
+        options.RequireHttpsMetadata = builder.Configuration.GetValue("Auth0:RequireHttpsMetadata", true);
+        options.TokenValidationParameters.NameClaimType = "sub";
+      });
+}
+builder.Services.AddAuthorization();
+
+// The signed-in web app queries this GraphQL endpoint straight from the browser.
+var webAppOrigins = builder.Configuration.GetSection("WebAppOrigins").Get<string[]>()
+    ?? ["https://localhost:7200", "http://localhost:7201"];
+builder.Services.AddCors(options => options.AddPolicy("BlazorWasmClient", policy =>
+    policy.WithOrigins(webAppOrigins).AllowAnyMethod().AllowAnyHeader()));
+
 // Query/Mutation are static classes extending empty root types - the shape HotChocolate
 // expects for static resolver methods.
 builder.AddGraphQL()
+    .AddAuthorization()
     .AddQueryType()
     .AddMutationType()
     .AddTypeExtension(typeof(Query))
@@ -83,9 +109,17 @@ if (app.Environment.IsDevelopment() && ordersConnectionString is not null)
   await db.Database.MigrateAsync();
 }
 
+app.UseCors("BlazorWasmClient");
+if (auth0Authority is not null)
+{
+  app.UseAuthentication();
+  app.UseAuthorization();
+}
+
 // The GraphQL endpoint itself stays anonymous (guest checkout); the Nitro IDE is dev-only.
 app.MapGraphQL()
-    .WithOptions(options => options.Tool.Enable = app.Environment.IsDevelopment());
+    .WithOptions(options => options.Tool.Enable = app.Environment.IsDevelopment())
+    .RequireCors("BlazorWasmClient");
 
 // Stays anonymous - the AppHost uses it as the health probe.
 app.MapGet("/", () => "BikeBuilder.API.Orders — GraphQL endpoint at /graphql.");

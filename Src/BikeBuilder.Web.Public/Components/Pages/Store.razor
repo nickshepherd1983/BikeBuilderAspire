@@ -67,7 +67,10 @@
                     <MudList T="string" Dense="true">
                         @foreach (var item in _order.Items)
                         {
-                            <MudListItem T="string">
+                            @* @key: without it Blazor reuses list DOM positionally across
+                               re-renders, and a click racing a re-render can land on the
+                               wrong item's remove handler. *@
+                            <MudListItem T="string" @key="item.Id">
                                 <div class="d-flex align-center justify-space-between" style="width: 100%;">
                                     <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity — @FormatPrice(item.LineTotal)</MudText>
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"

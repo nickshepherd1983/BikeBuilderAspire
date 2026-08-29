@@ -145,16 +145,21 @@ if (isTest)
 api.WithHttpHealthCheck("/");
 
 // Orders: GraphQL storefront backend. References the api for catalog price snapshots at
-// add-to-order time.
+// add-to-order time. Auth0 guards the back-office orders query; guest checkout is anonymous.
 var orders = builder.AddProject<Projects.BikeBuilder_API_Orders>("orders",
         options => options.ExcludeLaunchProfile = isTest)
     .WithReference(ordersDb).WaitFor(ordersDb)
     .WithReference(serviceBus).WaitFor(serviceBus)
-    .WithReference(api).WaitFor(api);
+    .WithReference(api).WaitFor(api)
+    .WithEnvironment("Auth0__Authority", isTest ? TestOidcIssuer : Auth0Authority)
+    .WithEnvironment("Auth0__Audience", isTest ? OidcAudience : Auth0Audience);
+WithWebAppOrigins(orders);
 if (isTest)
 {
   orders.WithHttpEndpoint(port: 18600)
-      .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+      .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+      .WithEnvironment("Auth0__RequireHttpsMetadata", "false")
+      .WaitFor(oidc!);
 }
 orders.WithHttpHealthCheck("/");
 

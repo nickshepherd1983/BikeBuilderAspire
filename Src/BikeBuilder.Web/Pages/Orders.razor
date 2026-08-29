@@ -1,0 +1,53 @@
+@page "/orders"
+@attribute [Authorize]
+
+<PageTitle>Orders</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Orders</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Everything customers have bought (or are still deciding on) in the public store.</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Class="ma-8" />
+}
+else if (_orders.Count == 0)
+{
+    <MudText>No orders yet — send someone to the public store!</MudText>
+}
+else
+{
+    <MudTable Items="_orders" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Order</MudTh>
+            <MudTh>Customer</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Placed</MudTh>
+            <MudTh>Items</MudTh>
+            <MudTh Style="text-align: right;">Total</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Order">#@context.Id</MudTd>
+            <MudTd DataLabel="Customer">
+                <MudText Typo="Typo.body2">@context.CustomerName</MudText>
+                @if (context.CustomerEmail is not null)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.CustomerEmail</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Status == "PLACED" ? Color.Success : Color.Default)">
+                    @FormatStatus(context.Status)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Placed">@(context.PlacedAt?.LocalDateTime.ToString("g") ?? "—")</MudTd>
+            <MudTd DataLabel="Items">
+                @foreach (var item in context.Items)
+                {
+                    <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity — @item.LineTotal.ToString("C2")</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Total" Style="text-align: right;">@context.Total.ToString("C2")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
