@@ -82,6 +82,14 @@ jobs:
             echo "==== $(docker inspect --format '{{.Name}} status={{.State.Status}} exit={{.State.ExitCode}}' "$c") ===="
             docker logs --tail 60 "$c" 2>&1 | tail -60
           done
+          # Executable resources (the apps, the Functions host) log into Aspire's DCP
+          # session directory, not Docker.
+          echo "==== aspire dcp executable logs ===="
+          for f in /tmp/aspire-dcp*/*_out /tmp/aspire-dcp*/*_err; do
+            [ -s "$f" ] || continue
+            echo "==== $f ===="
+            tail -40 "$f"
+          done
 
       # Failure screenshots + console logs, and the Playwright videos of every run.
       - name: Upload test artifacts
