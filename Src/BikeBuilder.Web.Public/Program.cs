@@ -41,16 +41,24 @@ var catalogAddress = new Uri(
     ?? "https://localhost:7100");
 var ordersGraphQLAddress = new Uri("https+http://orders/graphql");
 #pragma warning restore S1075
-// HttpVersion 1.1: GrpcWebHandler still tries HTTP/2 by default, and Kestrel can't speak
-// h2c alongside HTTP/1.1 on a plaintext endpoint.
+// HTTP/1.1 exactly: gRPC-Web defaults to HTTP/2, and Kestrel can't speak h2c alongside
+// HTTP/1.1 on a plaintext endpoint.
 builder.Services
     .AddGrpcClient<ComponentService.ComponentServiceClient>(options => options.Address = catalogAddress)
-    .ConfigurePrimaryHttpMessageHandler(() =>
-        new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()) { HttpVersion = new Version(1, 1) });
+    .ConfigureChannel(channel =>
+    {
+      channel.HttpVersion = System.Net.HttpVersion.Version11;
+      channel.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()));
 builder.Services
     .AddGrpcClient<BikeBuildService.BikeBuildServiceClient>(options => options.Address = catalogAddress)
-    .ConfigurePrimaryHttpMessageHandler(() =>
-        new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()) { HttpVersion = new Version(1, 1) });
+    .ConfigureChannel(channel =>
+    {
+      channel.HttpVersion = System.Net.HttpVersion.Version11;
+      channel.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()));
 builder.Services.AddScoped<CatalogClient>();
 // Plain HttpClient for the component-image proxy endpoint below.
 builder.Services.AddHttpClient("catalog-images", client => client.BaseAddress = catalogAddress);
