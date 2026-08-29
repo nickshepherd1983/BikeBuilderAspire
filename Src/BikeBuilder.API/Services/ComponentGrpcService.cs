@@ -1,7 +1,13 @@
-﻿namespace BikeBuilder.API.Services;
+﻿using Microsoft.AspNetCore.Authorization;
 
+namespace BikeBuilder.API.Services;
+
+// Reads are anonymous (the public storefront and the Orders service browse the catalog
+// without a token); everything else requires the JWT.
+[Authorize]
 public class ComponentGrpcService(BikeBuilderDbContext db, ComponentImageStorageService storage, IEventPublisher eventPublisher) : ComponentService.ComponentServiceBase
 {
+  [AllowAnonymous]
   public override async Task<ListComponentsResponse> ListComponents(ListComponentsRequest request, ServerCallContext context)
   {
     IQueryable<Data.Entities.Component> query = db.Components.Include(c => c.Image).AsNoTracking();
@@ -42,6 +48,7 @@ public class ComponentGrpcService(BikeBuilderDbContext db, ComponentImageStorage
     return response;
   }
 
+  [AllowAnonymous]
   public override async Task<ComponentMessage> GetComponent(GetComponentRequest request, ServerCallContext context)
   {
     var component = await db.Components.Include(c => c.Image).AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.Id, context.CancellationToken)

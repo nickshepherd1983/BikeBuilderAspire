@@ -1,0 +1,87 @@
+@page "/store"
+@using BikeBuilder.Web.Public.GraphQL
+@using BikeBuilder.Web.Public.Services
+
+<PageTitle>Store</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Store</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Buy components and complete bike builds — no account needed.</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="8">
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Search the catalog..."
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="OnSearchAsync"
+                      Clearable="true" Class="mb-2" />
+        <MudTabs ActivePanelIndex="_tabIndex" ActivePanelIndexChanged="OnTabChangedAsync" Class="mb-2">
+            <MudTabPanel Text="Components" />
+            <MudTabPanel Text="Bike Builds" />
+        </MudTabs>
+        @if (_loading)
+        {
+            <MudProgressCircular Indeterminate="true" Class="ma-8" />
+        }
+        else if (_products.Count == 0)
+        {
+            <MudText Class="mt-4">Nothing matches your search.</MudText>
+        }
+        else
+        {
+            <MudGrid>
+                @foreach (var product in _products)
+                {
+                    <MudItem xs="12" sm="6" lg="4">
+                        <MudCard Style="height: 100%; display: flex; flex-direction: column;">
+                            @if (product.HasImage)
+                            {
+                                <MudCardMedia Image="@($"/store/components/{product.Id}/image")" Height="140" />
+                            }
+                            <MudCardContent Style="flex: 1;">
+                                <MudText Typo="Typo.h6">@product.Name</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">@product.Description</MudText>
+                                <MudText Typo="Typo.subtitle1" Class="mt-2">@FormatPrice(product.Price)</MudText>
+                            </MudCardContent>
+                            <MudCardActions>
+                                <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                                           StartIcon="@Icons.Material.Filled.AddShoppingCart"
+                                           OnClick="() => AddToCartAsync(product)">Add to cart</MudButton>
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+            <MudPagination Count="PageCount" Selected="_page" SelectedChanged="OnPageChangedAsync" Class="mt-4" />
+        }
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h5" GutterBottom="true">Cart</MudText>
+                @if (_order is null || _order.Items.Count == 0)
+                {
+                    <MudText>Your cart is empty.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">Ordering as <b>@_order.CustomerName</b></MudText>
+                    <MudList T="string" Dense="true">
+                        @foreach (var item in _order.Items)
+                        {
+                            <MudListItem T="string">
+                                <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                                    <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity — @FormatPrice(item.LineTotal)</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                   aria-label="@($"Remove {item.ProductName}")"
+                                                   OnClick="() => RemoveItemAsync(item)" />
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                    <MudText Typo="Typo.h6" Class="mt-2">Total: @FormatPrice(_order.Total)</MudText>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" Class="mt-3"
+                               Disabled="_processing" OnClick="ProcessOrderAsync">Process order</MudButton>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>

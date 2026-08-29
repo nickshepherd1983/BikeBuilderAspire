@@ -26,6 +26,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
   public string WebBaseAddress => "http://127.0.0.1:18200";
   public string WebPublicBaseAddress => "http://127.0.0.1:18300";
   public string RatingsBaseAddress => "http://127.0.0.1:18500";
+  public string OrdersBaseAddress => "http://127.0.0.1:18600";
 
   public IBrowser Browser { get; private set; } = null!;
 
@@ -59,6 +60,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     await Task.WhenAll(
         notifications.WaitForResourceHealthyAsync("oidc-mock", cts.Token),
         notifications.WaitForResourceHealthyAsync("api", cts.Token),
+        notifications.WaitForResourceHealthyAsync("orders", cts.Token),
         notifications.WaitForResourceHealthyAsync("ratings", cts.Token),
         notifications.WaitForResourceHealthyAsync("web", cts.Token),
         notifications.WaitForResourceHealthyAsync("web-public", cts.Token));

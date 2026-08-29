@@ -1,0 +1,46 @@
+fragment OrderParts on Order {
+  id
+  customerName
+  customerEmail
+  status
+  total
+  items {
+    id
+    productType
+    productId
+    productName
+    unitPrice
+    quantity
+    lineTotal
+  }
+}
+
+query GetOrder($id: Int!) {
+  order(id: $id) {
+    ...OrderParts
+  }
+}
+
+mutation CreateOrder($customerName: String!, $customerEmail: String) {
+  createOrder(customerName: $customerName, customerEmail: $customerEmail) {
+    ...OrderParts
+  }
+}
+
+mutation AddOrderItem($orderId: Int!, $productType: ProductType!, $productId: Int!, $quantity: Int!) {
+  addOrderItem(orderId: $orderId, productType: $productType, productId: $productId, quantity: $quantity) {
+    ...OrderParts
+  }
+}
+
+mutation RemoveOrderItem($orderId: Int!, $orderItemId: Int!) {
+  removeOrderItem(orderId: $orderId, orderItemId: $orderItemId) {
+    ...OrderParts
+  }
+}
+
+mutation ProcessOrder($orderId: Int!) {
+  processOrder(orderId: $orderId) {
+    ...OrderParts
+  }
+}

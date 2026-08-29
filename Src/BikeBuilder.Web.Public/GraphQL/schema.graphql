@@ -1,0 +1,70 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  order(id: Int!): Order
+}
+
+type Mutation {
+  createOrder(customerName: String!, customerEmail: String): Order!
+  addOrderItem(
+    orderId: Int!
+    productType: ProductType!
+    productId: Int!
+    quantity: Int!
+  ): Order!
+  removeOrderItem(orderId: Int!, orderItemId: Int!): Order!
+  processOrder(orderId: Int!): Order!
+}
+
+enum ProductType {
+  COMPONENT
+  BIKE_BUILD
+}
+
+type Order {
+  id: Int!
+  customerName: String!
+  customerEmail: String
+  status: OrderStatus!
+  createdAt: DateTime!
+  placedAt: DateTime
+  items: [OrderItem!]!
+  total: Decimal!
+}
+
+type OrderItem {
+  id: Int!
+  orderId: Int!
+  productType: ProductType!
+  productId: Int!
+  productName: String!
+  unitPrice: Decimal!
+  quantity: Int!
+  lineTotal: Decimal!
+}
+
+"The `DateTime` scalar type represents a date and time with time zone offset information."
+scalar DateTime
+
+enum OrderStatus {
+  DRAFT
+  PLACED
+}
+
+"The `Decimal` scalar type represents a decimal floating-point number with high precision."
+scalar Decimal
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION

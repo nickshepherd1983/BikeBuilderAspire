@@ -4,18 +4,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Same proto-sharing pattern as BikeBuilder.Web: compile the API's protos as clients
-         for the storefront catalog. -->
+         for the catalog price-snapshot lookups. -->
     <Protobuf Include="..\BikeBuilder.API\Protos\component.proto" GrpcServices="Client" Link="Protos\component.proto" />
     <Protobuf Include="..\BikeBuilder.API\Protos\bikebuild.proto" GrpcServices="Client" Link="Protos\bikebuild.proto" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Azure.Messaging.ServiceBus" Version="13.5.3" />
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.5.3" />
     <PackageReference Include="Google.Protobuf" Version="3.36.0" />
     <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
     <PackageReference Include="Grpc.Net.Client.Web" Version="2.83.0" />
@@ -23,9 +23,15 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
-    <PackageReference Include="MudBlazor" Version="9.9.0" />
-    <PackageReference Include="StrawberryShake.Server" Version="16.6.2" />
+    <PackageReference Include="HotChocolate.AspNetCore" Version="16.6.2" />
+    <PackageReference Include="HotChocolate.Data.EntityFramework" Version="16.6.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- Stable-semconv SqlClient tracing records db.query.text, matching BikeBuilder.API. -->
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.18.0" />
     <PackageReference Include="SonarAnalyzer.CSharp" Version="10.33.0.1635">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

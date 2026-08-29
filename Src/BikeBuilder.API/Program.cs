@@ -68,8 +68,11 @@ app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGrpcService<ComponentGrpcService>().RequireAuthorization();
-app.MapGrpcService<BikeBuildGrpcService>().RequireAuthorization();
+// Auth moved to attributes on the service classes: [Authorize] with [AllowAnonymous] on the
+// catalog READ methods, so the public storefront (Web.Public) and the Orders service can
+// browse and price-snapshot without a token. Writes stay JWT-authenticated.
+app.MapGrpcService<ComponentGrpcService>();
+app.MapGrpcService<BikeBuildGrpcService>();
 app.MapComponentImageEndpoints();
 // Stays anonymous - the AppHost uses it as the health probe.
 app.MapGet("/", () => "BikeBuilder.API gRPC endpoints — use a gRPC-Web client.");

@@ -1,0 +1,21 @@
+{
+  "schema": "schema.graphql",
+  "documents": "**/*.graphql",
+  "extensions": {
+    "strawberryShake": {
+      "name": "OrdersClient",
+      "namespace": "BikeBuilder.Web.Public.GraphQL",
+      "url": "http://localhost:7401/graphql",
+      "dependencyInjection": true,
+      "records": {
+        "inputs": true,
+        "entities": false
+      },
+      "transportProfiles": [
+        {
+          "default": "Http"
+        }
+      ]
+    }
+  }
+}

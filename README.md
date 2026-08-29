@@ -13,15 +13,16 @@ land in real time on a public site.
 
 | Project | What it is |
 | --- | --- |
-| `BikeBuilder.AppHost` | .NET Aspire app host — the one thing you run: orchestrates SQL Server, Azurite, the Service Bus and Cosmos emulators, and all four apps |
+| `BikeBuilder.AppHost` | .NET Aspire app host — the one thing you run: orchestrates SQL Server, Azurite, the Service Bus and Cosmos emulators, and all five apps |
 | `BikeBuilder.ServiceDefaults` | Shared Aspire service defaults: OpenTelemetry (traces, metrics, logs), health checks, service discovery |
-| `BikeBuilder.Web` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service |
-| `BikeBuilder.API` | ASP.NET Core gRPC API (EF Core + SQL Server), component image upload to Azure Blob Storage, publishes events to Service Bus |
+| `BikeBuilder.Web` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service; signed-in users get live order toasts |
+| `BikeBuilder.API` | ASP.NET Core gRPC API (EF Core + SQL Server), component image upload to Azure Blob Storage, publishes events to Service Bus; catalog reads are anonymous so the storefront can browse |
+| `BikeBuilder.API.Orders` | HotChocolate GraphQL orders microservice with its own SQL Server database (a discrete bounded context); snapshots catalog prices via gRPC-Web and publishes OrderPlaced events to Service Bus |
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
-| `BikeBuilder.Web.Public` | Blazor Server public site showing live activity toasts (Service Bus → SignalR) |
+| `BikeBuilder.Web.Public` | Blazor Server public site: live activity toasts (Service Bus → SignalR) plus a guest-checkout storefront (StrawberryShake GraphQL client) |
 | `BikeBuilder.Contracts` | Shared event/message contracts |
 | `BikeBuilder.DataSeeder` | Console tool that fills the local dev stack with 1000+ real-sounding components, 100 bike builds, and 1–30 ratings each |
-| `BikeBuilder.Test.Integration` | End-to-end smoke test: the Aspire testing host boots the whole system (with a stub OIDC issuer standing in for Auth0) and Playwright drives the real UI, recording video |
+| `BikeBuilder.Test.Integration` | End-to-end smoke tests: the Aspire testing host boots the whole system (with a stub OIDC issuer standing in for Auth0) and Playwright drives the real UI, recording video |
 
 ## Running it
 
@@ -47,6 +48,15 @@ only runs when you tell it to). Running it a second time refuses to touch a non-
 to wipe and reseed, run it by hand with the connection strings from the dashboard's environment
 view and pass `--reset`.
 
+## Storefront
+
+The public site at https://localhost:7300 has a `/store` page: browse components and bike
+builds (prices come from the catalog; images are proxied same-origin), add them to a cart,
+and check out as a guest — just a name, no account. Processing the order saves it to the
+Orders service's own database and publishes an `OrderPlaced` event; the toast lands on the
+public home page and, via SignalR, for every signed-in user of the web app. The orders
+GraphQL endpoint (with the Nitro IDE in dev) is at https://localhost:7400/graphql.
+
 ## Telemetry
 
 Every server app (API, Web.Public, Ratings) exports OpenTelemetry traces, metrics, and logs
@@ -61,8 +71,10 @@ convention, click through it). Telemetry is in-memory and resets with the AppHos
 dotnet test Src/BikeBuilder.Test.Integration
 ```
 
-One end-to-end test covers the whole journey: log in, create a component, upload an image,
-build a bike, rate it, and verify the live toasts on the public site. Requires Docker and the
+Two end-to-end tests cover the whole journey: one logs in, creates a component with an image,
+builds a bike, rates it, and verifies the live toasts on the public site; the other buys from
+the storefront as a guest and verifies the order toast on both the public site and the
+signed-in web app. Requires Docker and the
 Azure Functions Core Tools. The Aspire testing host (`Aspire.Hosting.Testing`) runs the same
 AppHost in test mode: fixed 18xxx ports, a stub OIDC issuer instead of Auth0, and
 session-scoped containers that are torn down with the fixture. Debugging the test from Visual

@@ -1,9 +1,14 @@
 ﻿using Google.Protobuf.WellKnownTypes;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BikeBuilder.API.Services;
 
+// Reads are anonymous (the public storefront and the Orders service browse the catalog
+// without a token); everything else requires the JWT.
+[Authorize]
 public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher eventPublisher) : BikeBuildService.BikeBuildServiceBase
 {
+  [AllowAnonymous]
   public override async Task<ListBikeBuildsResponse> ListBikeBuilds(ListBikeBuildsRequest request, ServerCallContext context)
   {
     var page = Math.Max(request.Page, 1);
@@ -42,6 +47,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return response;
   }
 
+  [AllowAnonymous]
   public override async Task<BikeBuildMessage> GetBikeBuild(GetBikeBuildRequest request, ServerCallContext context)
   {
     var bikeBuild = await LoadBikeBuildWithComponents(request.Id, context.CancellationToken);
@@ -150,6 +156,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return new RemoveBikeBuildComponentResponse { Success = true };
   }
 
+  [AllowAnonymous]
   public override async Task<ListBikeBuildComponentsResponse> ListBikeBuildComponents(ListBikeBuildComponentsRequest request, ServerCallContext context)
   {
     var bikeBuildExists = await db.BikeBuilds.AnyAsync(b => b.Id == request.BikeBuildId, context.CancellationToken);

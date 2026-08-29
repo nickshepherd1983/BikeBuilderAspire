@@ -40,6 +40,8 @@ public class ServiceBusListenerBackgroundService(
           $"New bike build created: {args.Message.Body.ToObjectFromJson<BikeBuildCreatedEvent>()!.Name}",
       ServiceBusMessageTypes.RatingCreated =>
           FormatRatingCreated(args.Message.Body.ToObjectFromJson<RatingCreatedEvent>()!),
+      ServiceBusMessageTypes.OrderPlaced =>
+          FormatOrderPlaced(args.Message.Body.ToObjectFromJson<OrderPlacedEvent>()!),
       _ => null
     };
 
@@ -48,6 +50,11 @@ public class ServiceBusListenerBackgroundService(
       using var activity = _traceSource.StartActivity("NotificationHub broadcast");
       activity?.SetTag("bikebuilder.message_type", messageType);
       await hubContext.Clients.All.SendAsync("ReceiveNotification", text, args.CancellationToken);
+
+      // Order events additionally go out on a dedicated method so clients that only care
+      // about orders (the authenticated WASM app) don't have to string-match the feed.
+      if (messageType == ServiceBusMessageTypes.OrderPlaced)
+        await hubContext.Clients.All.SendAsync("ReceiveOrderNotification", text, args.CancellationToken);
     }
 
     await args.CompleteMessageAsync(args.Message, args.CancellationToken);
@@ -55,6 +62,11 @@ public class ServiceBusListenerBackgroundService(
 
   static string FormatRatingCreated(RatingCreatedEvent rating) =>
       $"New {rating.Stars}-star rating for {rating.BikeBuildName}";
+
+  // Invariant "$" formatting keeps the toast text machine-independent (the integration
+  // test asserts on it).
+  static string FormatOrderPlaced(OrderPlacedEvent order) =>
+      $"New order placed by {order.CustomerName}: {order.ItemCount} item(s), ${order.Total.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}";
 
   public override async Task StopAsync(CancellationToken cancellationToken)
   {

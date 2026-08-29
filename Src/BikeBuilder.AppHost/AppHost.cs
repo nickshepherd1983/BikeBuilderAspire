@@ -28,6 +28,8 @@ var sql = builder.AddSqlServer("sql")
 if (!isTest)
   sql.WithDataVolume();
 var db = sql.AddDatabase("BikeBuilderDb");
+// The Orders bounded context gets its own logical database on the same server container.
+var ordersDb = sql.AddDatabase("BikeBuilderOrdersDb");
 
 var storage = builder.AddAzureStorage("storage")
     .RunAsEmulator(azurite =>
@@ -49,8 +51,8 @@ var cosmos = builder.AddAzureCosmosDB("cosmos")
       if (!isTest)
         emulator.WithDataVolume();
     });
-// Resource name "ratings-container" (the "ratings" name belongs to the Functions app);
-// the actual Cosmos container is still called "ratings".
+// The container resource gets its own name because the Functions app already claims the
+// resource name "ratings" - the actual Cosmos container keeps that name via the third arg.
 var ratingsContainer = cosmos.AddCosmosDatabase("bikebuilder").AddContainer("ratings-container", "/bikeBuildId", "ratings");
 
 // --- Test-only stub OIDC issuer (stands in for Auth0) -----------------------------------
@@ -142,6 +144,20 @@ if (isTest)
 // the trace filter's excluded probe.
 api.WithHttpHealthCheck("/");
 
+// Orders: GraphQL storefront backend. References the api for catalog price snapshots at
+// add-to-order time.
+var orders = builder.AddProject<Projects.BikeBuilder_API_Orders>("orders",
+        options => options.ExcludeLaunchProfile = isTest)
+    .WithReference(ordersDb).WaitFor(ordersDb)
+    .WithReference(serviceBus).WaitFor(serviceBus)
+    .WithReference(api).WaitFor(api);
+if (isTest)
+{
+  orders.WithHttpEndpoint(port: 18600)
+      .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+}
+orders.WithHttpHealthCheck("/");
+
 var ratings = builder.AddAzureFunctionsProject<Projects.BikeBuilder_API_Ratings>("ratings")
     .WithHostStorage(storage)
     .WithReference(cosmos).WaitFor(ratingsContainer)
@@ -168,7 +184,12 @@ else
 
 var webPublic = builder.AddProject<Projects.BikeBuilder_Web_Public>("web-public",
         options => options.ExcludeLaunchProfile = isTest)
-    .WithReference(serviceBus).WaitFor(serviceBus);
+    .WithReference(serviceBus).WaitFor(serviceBus)
+    // Storefront: catalog browsing + image proxy via the api, orders via GraphQL.
+    .WithReference(api).WaitFor(api)
+    .WithReference(orders).WaitFor(orders);
+// The WASM app connects to this app's SignalR hub for order toasts - CORS needs its origins.
+WithWebAppOrigins(webPublic);
 if (isTest)
 {
   webPublic.WithHttpEndpoint(port: 18300)
