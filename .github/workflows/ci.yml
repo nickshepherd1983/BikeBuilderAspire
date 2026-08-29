@@ -44,7 +44,7 @@ jobs:
         run: |
           curl -sSL -o /tmp/func.zip https://github.com/Azure/azure-functions-core-tools/releases/download/4.13.0/Azure.Functions.Cli.linux-x64.4.13.0.zip
           unzip -q /tmp/func.zip -d "$HOME/func-cli"
-          chmod +x "$HOME/func-cli/func" "$HOME/func-cli/gozip"
+          chmod +x "$HOME/func-cli/func"
           echo "$HOME/func-cli" >> "$GITHUB_PATH"
 
       - name: Build test project
