@@ -19,11 +19,11 @@ public class BikeBuildEditPage(IPage page)
 
     // The recommended-maximum warning is advisory: assert it shows, then save anyway.
     if (expectWarningContains is not null)
-      await Expect(dialog.Locator(".mud-alert")).ToContainTextAsync(expectWarningContains, new() { Timeout = 8000 });
+      await Expect(dialog.Locator(".mud-alert")).ToContainTextAsync(expectWarningContains, new() { Timeout = 30_000 });
 
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
 
-    await page.Locator("table tbody").GetByText(componentName, new() { Exact = true }).WaitForAsync(new() { Timeout = 8000 });
+    await page.Locator("table tbody").GetByText(componentName, new() { Exact = true }).WaitForAsync(new() { Timeout = 30_000 });
   });
 
   public async Task<IReadOnlyList<string>> GetAttachedComponentNamesAsync() =>
@@ -64,8 +64,8 @@ public class BikeBuildEditPage(IPage page)
     // GetByText(userName) is a strict-mode violation from the second rating on. Anchor on
     // this rating's unique comment and check the author caption inside that entry's div.
     var entry = RatingsSection.GetByText(comment).Locator("..");
-    await Expect(entry).ToBeVisibleAsync(new() { Timeout = 8000 });
-    await Expect(entry.GetByText(userName)).ToBeVisibleAsync(new() { Timeout = 8000 });
+    await Expect(entry).ToBeVisibleAsync(new() { Timeout = 30_000 });
+    await Expect(entry.GetByText(userName)).ToBeVisibleAsync(new() { Timeout = 30_000 });
   }
 
   ILocator RatingsSection => page.Locator(".mud-paper", new() { HasText = "Leave a rating" });

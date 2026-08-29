@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
 using BikeBuilder.API.Data;
@@ -137,6 +137,11 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
       RecordVideoDir = VideosDir,
       RecordVideoSize = new() { Width = 1280, Height = 720 }
     });
+    // CI runners are heavily oversubscribed (six emulator containers + five apps + three
+    // recording browser pages on four cores), so give actions and waits far more headroom
+    // than Playwright's 30s default. Locally everything completes as fast as ever - waits
+    // return the moment their condition is met.
+    context.SetDefaultTimeout(60_000);
     return await context.NewPageAsync();
   }
 
@@ -166,7 +171,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
         if (DateTime.UtcNow >= deadline)
           throw new InvalidOperationException($"Action did not succeed within {timeoutSeconds}s.", ex);
 
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        await Task.Delay(TimeSpan.FromSeconds(5));
       }
     }
   }

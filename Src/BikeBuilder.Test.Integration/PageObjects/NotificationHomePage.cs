@@ -11,10 +11,10 @@ public class NotificationHomePage(IPage page, string baseUrl)
     // interactive circuit (and the real SignalR HubConnection Home.razor opens once
     // interactive) has finished connecting - settle briefly so callers can rely on the
     // notification hub connection actually being live once this method returns.
-    await Task.Delay(TimeSpan.FromSeconds(2));
+    await Task.Delay(TimeSpan.FromSeconds(5));
   }
 
-  public Task WaitForNotificationAsync(string expectedTextSubstring, float timeout = 10_000) =>
+  public Task WaitForNotificationAsync(string expectedTextSubstring, float timeout = 30_000) =>
       Expect(page.GetByRole(AriaRole.Alert).Filter(new() { HasText = expectedTextSubstring }))
           .ToBeVisibleAsync(new() { Timeout = timeout });
 }

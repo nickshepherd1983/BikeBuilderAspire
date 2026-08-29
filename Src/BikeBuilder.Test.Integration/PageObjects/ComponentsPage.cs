@@ -43,14 +43,14 @@ public class ComponentsPage(IPage page, string baseUrl)
 
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
 
-    await page.Locator("table tbody").GetByText(name, new() { Exact = true }).WaitForAsync(new() { Timeout = 8000 });
+    await page.Locator("table tbody").GetByText(name, new() { Exact = true }).WaitForAsync(new() { Timeout = 30_000 });
   });
 
   public Task UploadImageToRowAsync(string componentName, string filePath) => RetryHelper.RunAsync(async () =>
   {
     var row = RowByName(componentName);
     await row.Locator("input[type=file]").SetInputFilesAsync(filePath);
-    await row.Locator("img").WaitForAsync(new() { Timeout = 8000 });
+    await row.Locator("img").WaitForAsync(new() { Timeout = 30_000 });
   });
 
   public async Task<bool> HasThumbnailAsync(string componentName)

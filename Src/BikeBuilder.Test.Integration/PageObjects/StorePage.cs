@@ -1,4 +1,4 @@
-namespace BikeBuilder.Test.Integration.PageObjects;
+﻿namespace BikeBuilder.Test.Integration.PageObjects;
 
 // Drives the Web.Public storefront at /store: browse the catalog tabs, build up a guest
 // cart, and process the order.
@@ -11,7 +11,7 @@ public class StorePage(IPage page, string baseUrl)
 
     // The heading prerenders before the interactive circuit is up (and the circuit is what
     // loads the catalog and cart) - same settle convention as NotificationHomePage.
-    await Task.Delay(TimeSpan.FromSeconds(2));
+    await Task.Delay(TimeSpan.FromSeconds(5));
   }
 
   // Product cards carry an Add-to-cart button; the cart card doesn't, so this filter
@@ -57,6 +57,6 @@ public class StorePage(IPage page, string baseUrl)
   public Task ProcessOrderAsync() =>
       page.GetByRole(AriaRole.Button, new() { Name = "Process order" }).ClickAsync();
 
-  public Task WaitForOrderConfirmationAsync(string buyerName, float timeout = 10_000) =>
+  public Task WaitForOrderConfirmationAsync(string buyerName, float timeout = 30_000) =>
       ToastHelper.WaitForToastAsync(page, $"Order placed — thanks, {buyerName}!", timeout);
 }

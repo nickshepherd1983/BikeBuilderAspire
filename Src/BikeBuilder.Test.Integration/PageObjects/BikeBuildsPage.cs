@@ -56,7 +56,7 @@ public class BikeBuildsPage(IPage page, string baseUrl)
       await dialog.GetByLabel("Description").FillAsync(description);
       await dialog.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
 
-      await page.GetByRole(AriaRole.Heading, new() { Name = "Edit Bike Build" }).WaitForAsync(new() { Timeout = 8000 });
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Edit Bike Build" }).WaitForAsync(new() { Timeout = 30_000 });
     });
 
     return new BikeBuildEditPage(page);
