@@ -51,13 +51,21 @@ public class BikeBuildsPage(IPage page, string baseUrl)
         await dialog.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
       }
 
-      await page.GetByRole(AriaRole.Button, new() { Name = "Create Bike Build" }).ClickAsync();
+      // On a starved CI runner the silent OIDC re-auth that follows a full page load can
+      // fail and strand the app on a blank authentication redirect; waiting longer never
+      // helps, but re-navigating restarts the auth dance cleanly (including the login
+      // form, which GotoAsync handles).
+      var createButton = page.GetByRole(AriaRole.Button, new() { Name = "Create Bike Build" });
+      if (!await createButton.IsVisibleAsync())
+        await GotoAsync();
+
+      await createButton.ClickAsync();
       await dialog.GetByLabel("Name").FillAsync(name);
       await dialog.GetByLabel("Description").FillAsync(description);
       await dialog.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
 
       await page.GetByRole(AriaRole.Heading, new() { Name = "Edit Bike Build" }).WaitForAsync(new() { Timeout = 30_000 });
-    });
+    }, maxAttempts: 3);
 
     return new BikeBuildEditPage(page);
   }
