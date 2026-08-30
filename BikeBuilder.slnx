@@ -5,6 +5,7 @@
   <Folder Name="/Src/">
     <Project Path="Src/BikeBuilder.API/BikeBuilder.API.csproj" />
     <Project Path="Src/BikeBuilder.API.Orders/BikeBuilder.API.Orders.csproj" />
+    <Project Path="Src/BikeBuilder.API.Notifications/BikeBuilder.API.Notifications.csproj" />
     <Project Path="Src/BikeBuilder.API.Ratings/BikeBuilder.API.Ratings.csproj" />
     <Project Path="Src/BikeBuilder.AppHost/BikeBuilder.AppHost.csproj" />
     <Project Path="Src/BikeBuilder.Contracts/BikeBuilder.Contracts.csproj" />
