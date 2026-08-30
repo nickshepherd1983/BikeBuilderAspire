@@ -173,9 +173,36 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
   {
     var resultsDir = Path.Combine(AppContext.BaseDirectory, "TestResults");
     Directory.CreateDirectory(resultsDir);
-    var loggerService = _app.Services.GetRequiredService<ResourceLoggerService>();
 
-    foreach (var resourceName in new[] { "oidc-mock", "api", "orders", "ratings", "web", "web-public" })
+    // Final state + health per resource instance first: with WaitFor chains, the resource
+    // the test waited on is often just downstream of the one that actually failed, and this
+    // names the culprit even if its log capture below comes up empty. WatchAsync replays the
+    // latest snapshot of every known resource immediately, so a short window suffices.
+    var states = new SortedDictionary<string, string>();
+    try
+    {
+      using var stateCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+      await foreach (var resourceEvent in _app.ResourceNotifications.WatchAsync(stateCts.Token))
+      {
+        states[resourceEvent.ResourceId] =
+            $"state={resourceEvent.Snapshot.State?.Text ?? "unknown"} health={resourceEvent.Snapshot.HealthStatus?.ToString() ?? "unknown"}";
+      }
+    }
+    catch (OperationCanceledException)
+    {
+      // Expected - the stream stays open for future events.
+    }
+    await File.WriteAllLinesAsync(Path.Combine(resultsDir, "startup-states.log"),
+        states.Select(kv => $"{kv.Key}: {kv.Value}"));
+
+    var loggerService = _app.Services.GetRequiredService<ResourceLoggerService>();
+    var model = _app.Services.GetRequiredService<DistributedApplicationModel>();
+
+    // Every resource, containers included - the app that "failed to start" frequently did so
+    // because a container dependency died first. The IResource overload matters: the string
+    // overload keys on DCP instance ids ("ratings-abc12345"), so watching a model name like
+    // "ratings" silently streams nothing.
+    foreach (var resource in model.Resources)
     {
       var lines = new List<string>();
       try
@@ -183,7 +210,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
         // WatchAsync streams until the resource completes, so bound the replay of the
         // backlog with a short timeout and keep whatever arrived.
         using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await foreach (var batch in loggerService.WatchAsync(resourceName).WithCancellation(watchCts.Token))
+        await foreach (var batch in loggerService.WatchAsync(resource).WithCancellation(watchCts.Token))
         {
           foreach (var line in batch)
             lines.Add(line.Content);
@@ -198,7 +225,8 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
         lines.Add($"(failed to capture logs: {ex.Message})");
       }
 
-      await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"startup-{resourceName}.log"), lines);
+      if (lines.Count > 0)
+        await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"startup-{resource.Name}.log"), lines);
     }
   }
 
