@@ -1,5 +1,3 @@
-﻿using Microsoft.AspNetCore.Components.Forms;
-
 namespace BikeBuilder.Web.Pages;
 
 public partial class Components(

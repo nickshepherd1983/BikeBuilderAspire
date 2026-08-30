@@ -1,5 +1,4 @@
 using HotChocolate.Authorization;
-using HotChocolate.Types;
 
 namespace BikeBuilder.API.Orders.GraphQL;
 

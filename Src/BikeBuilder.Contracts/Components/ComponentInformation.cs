@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace BikeBuilder.Contracts.Components;
 
 public abstract class ComponentInformation

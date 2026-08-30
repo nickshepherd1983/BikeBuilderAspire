@@ -1,5 +1,3 @@
-using HotChocolate;
-
 namespace BikeBuilder.API.Orders.Data.Entities;
 
 public class Order

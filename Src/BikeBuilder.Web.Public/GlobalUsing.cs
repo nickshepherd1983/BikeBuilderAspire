@@ -1,5 +1,10 @@
-﻿global using Azure.Messaging.ServiceBus;
+﻿global using System.Diagnostics;
+global using System.Globalization;
+global using Azure.Messaging.ServiceBus;
+global using BikeBuilder.API.Protos;
+global using BikeBuilder.Web.Public.GraphQL;
 global using BikeBuilder.Web.Public.Hubs;
+global using BikeBuilder.Web.Public.Services;
 global using Microsoft.AspNetCore.Components;
 global using Microsoft.AspNetCore.SignalR;
 global using MudBlazor;

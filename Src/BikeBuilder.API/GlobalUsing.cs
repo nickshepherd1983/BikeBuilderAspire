@@ -10,6 +10,7 @@ global using BikeBuilder.Contracts.Components;
 global using BikeBuilder.Contracts.Events;
 global using BikeBuilder.Contracts.Messaging;
 global using Grpc.Core;
+global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.ChangeTracking;
 global using Microsoft.EntityFrameworkCore.Metadata.Builders;

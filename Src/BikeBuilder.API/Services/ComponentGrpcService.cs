@@ -1,5 +1,3 @@
-﻿using Microsoft.AspNetCore.Authorization;
-
 namespace BikeBuilder.API.Services;
 
 // Reads are anonymous (the public storefront and the Orders service browse the catalog

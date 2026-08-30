@@ -1,5 +1,4 @@
-﻿using Google.Protobuf.WellKnownTypes;
-using Microsoft.AspNetCore.Authorization;
+using Google.Protobuf.WellKnownTypes;
 
 namespace BikeBuilder.API.Services;
 

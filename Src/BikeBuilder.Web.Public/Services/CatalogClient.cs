@@ -1,6 +1,3 @@
-using System.Globalization;
-using BikeBuilder.API.Protos;
-
 namespace BikeBuilder.Web.Public.Services;
 
 public sealed record CatalogProduct(int Id, string Name, decimal Price, string Description, bool HasImage);

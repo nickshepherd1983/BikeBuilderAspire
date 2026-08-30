@@ -1,5 +1,4 @@
 using BikeBuilder.API.Orders.GraphQL;
-using BikeBuilder.API.Protos;
 using Grpc.Net.Client.Web;
 using HotChocolate.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;

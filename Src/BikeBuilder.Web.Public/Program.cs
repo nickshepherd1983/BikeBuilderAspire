@@ -1,7 +1,4 @@
-using BikeBuilder.API.Protos;
 using BikeBuilder.Web.Public.Components;
-using BikeBuilder.Web.Public.GraphQL;
-using BikeBuilder.Web.Public.Services;
 using Grpc.Net.Client.Web;
 using MudBlazor.Services;
 

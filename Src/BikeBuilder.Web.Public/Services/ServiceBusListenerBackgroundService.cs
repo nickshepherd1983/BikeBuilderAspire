@@ -1,4 +1,3 @@
-﻿using System.Diagnostics;
 using BikeBuilder.Contracts.Events;
 using BikeBuilder.Contracts.Messaging;
 

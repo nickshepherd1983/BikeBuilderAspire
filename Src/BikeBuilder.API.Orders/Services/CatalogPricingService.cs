@@ -1,7 +1,5 @@
 using System.Globalization;
-using BikeBuilder.API.Protos;
 using Grpc.Core;
-using HotChocolate;
 
 namespace BikeBuilder.API.Orders.Services;
 

@@ -1,6 +1,3 @@
-using HotChocolate;
-using HotChocolate.Types;
-
 namespace BikeBuilder.API.Orders.GraphQL;
 
 [MutationType]

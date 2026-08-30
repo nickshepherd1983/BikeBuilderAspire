@@ -1,5 +1,3 @@
-﻿using System.Net.Http.Json;
-
 namespace BikeBuilder.Web.Services;
 
 public class RatingsClient(HttpClient http)

@@ -1,7 +1,4 @@
-using System.Globalization;
 using BikeBuilder.Web.Public.Components.Store;
-using BikeBuilder.Web.Public.GraphQL;
-using BikeBuilder.Web.Public.Services;
 using StrawberryShake;
 
 namespace BikeBuilder.Web.Public.Components.Pages;

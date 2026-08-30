@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Text.Json.Serialization;
-
 namespace BikeBuilder.Contracts.Types;
 
 [JsonConverter(typeof(DoubleValueJsonConverter<TireWidthInches>))]
