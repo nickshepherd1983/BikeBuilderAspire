@@ -39,6 +39,23 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
 
   public async Task InitializeAsync()
   {
+    // A Visual Studio F5 session and this fixture both run the apps from the same
+    // bin\Debug outputs. Booting the test AppHost while a debug session holds them
+    // half-updates the build (MSB3027 file locks) and leaves mixed-generation static
+    // web assets - the WASM app then 404s its own fingerprinted _framework files and
+    // every test times out on the first navigation. Fail fast with the actual reason.
+    var conflicting = new[] { "BikeBuilder.AppHost", "BikeBuilder.API", "BikeBuilder.API.Orders", "BikeBuilder.Web", "BikeBuilder.Web.Public" }
+        .SelectMany(Process.GetProcessesByName)
+        .Select(process => $"{process.ProcessName} (pid {process.Id})")
+        .ToList();
+    if (conflicting.Count > 0)
+    {
+      throw new InvalidOperationException(
+          $"BikeBuilder app processes are already running: {string.Join(", ", conflicting)}. " +
+          "Stop the running debug session (Shift+F5) or `dotnet run` before running the integration " +
+          "tests - the fixture boots its own copy of the system from the same build output.");
+    }
+
     var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
     if (exitCode != 0)
     {
