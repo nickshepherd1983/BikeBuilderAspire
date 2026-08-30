@@ -69,8 +69,15 @@ if (isTest)
       // CookieSameSiteMode=Lax: the default of SameSite=None requires Secure, and Chromium
       // silently drops such cookies over plain http - the login POST would succeed but the
       // browser would return to /connect/authorize with no session, looping forever.
+      //
+      // EnableCheckSessionEndpoint=false: with check_session_iframe advertised, the WASM
+      // app's oidc-client starts its OP session monitor, which against this stub degenerates
+      // into an endless silent-reauth loop (authorize?prompt=none -> login-callback booting
+      // the whole app in a hidden iframe, 2-3 times per second) that burns CPU and wedges
+      // real token requests - observed as rating submissions hanging forever. Dropping the
+      // endpoint from discovery disables the monitor; real Auth0 doesn't advertise one either.
       .WithEnvironment("SERVER_OPTIONS_INLINE",
-          $$$"""{"IssuerUri":"{{{TestOidcIssuer}}}","AccessTokenJwtType":"JWT","Authentication":{"CookieSameSiteMode":"Lax"}}""")
+          $$$"""{"IssuerUri":"{{{TestOidcIssuer}}}","AccessTokenJwtType":"JWT","Authentication":{"CookieSameSiteMode":"Lax"},"Endpoints":{"EnableCheckSessionEndpoint":false}}""")
       .WithEnvironment("API_SCOPES_INLINE",
           $$"""[{"Name":"{{OidcAudience}}"}]""")
       // UserClaims: puts the user's name claim into access tokens for this API, the way a
