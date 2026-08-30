@@ -9,9 +9,7 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
     var storePage = await fixture.CreatePageAsync();
     var wasmPage = await fixture.CreatePageAsync();
     var notificationPage = await fixture.CreatePageAsync();
-    var consoleMessages = new List<string>();
-    storePage.Console += (_, msg) => consoleMessages.Add($"[{msg.Type}] {msg.Text}");
-    storePage.PageError += (_, error) => consoleMessages.Add($"[pageerror] {error}");
+    var consoleMessages = PageDiagnostics.Attach(storePage);
 
     try
     {
@@ -23,7 +21,7 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
       Directory.CreateDirectory(resultsDir);
       var id = Guid.NewGuid().ToString("N");
       await storePage.ScreenshotAsync(new() { Path = Path.Combine(resultsDir, $"failure-{id}.png"), FullPage = true });
-      await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"failure-{id}-console.log"), consoleMessages);
+      await PageDiagnostics.WriteAsync(consoleMessages, Path.Combine(resultsDir, $"failure-{id}-console.log"));
       throw;
     }
     finally

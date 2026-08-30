@@ -1,4 +1,5 @@
-﻿using BikeBuilder.API.Ratings.Models;
+﻿using System.Net;
+using BikeBuilder.API.Ratings.Models;
 
 namespace BikeBuilder.API.Ratings.Functions;
 
@@ -52,7 +53,29 @@ public class RatingsFunctions(Container container, IEventPublisher eventPublishe
       CreatedAt = DateTimeOffset.UtcNow
     };
 
-    await container.CreateItemAsync(document, new PartitionKey(bikeBuildId), cancellationToken: context.CancellationToken);
+    // The emulator under load (constrained CI runners, parallel test traffic) intermittently
+    // times out single writes - retry the transient statuses with backoff, same policy as the
+    // DataSeeder. A timed-out write may still have landed server-side, so a Conflict on a
+    // retry counts as success (the id is ours and unique to this request).
+    for (var attempt = 1; attempt <= 5; attempt++)
+    {
+      try
+      {
+        await container.CreateItemAsync(document, new PartitionKey(bikeBuildId), cancellationToken: context.CancellationToken);
+        break;
+      }
+      catch (CosmosException ex) when (attempt > 1 && ex.StatusCode == HttpStatusCode.Conflict)
+      {
+        break;
+      }
+      catch (CosmosException ex) when (attempt < 5 && ex.StatusCode
+          is HttpStatusCode.RequestTimeout
+          or HttpStatusCode.TooManyRequests
+          or HttpStatusCode.ServiceUnavailable)
+      {
+        await Task.Delay(TimeSpan.FromSeconds(attempt), context.CancellationToken);
+      }
+    }
 
     await eventPublisher.PublishAsync(ServiceBusMessageTypes.RatingCreated, new RatingCreatedEvent
     {

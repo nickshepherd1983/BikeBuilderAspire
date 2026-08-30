@@ -8,9 +8,7 @@ public class SmokeTests(BikeBuilderAppFixture fixture)
   {
     var page = await fixture.CreatePageAsync();
     var notificationPage = await fixture.CreatePageAsync();
-    var consoleMessages = new List<string>();
-    page.Console += (_, msg) => consoleMessages.Add($"[{msg.Type}] {msg.Text}");
-    page.PageError += (_, error) => consoleMessages.Add($"[pageerror] {error}");
+    var consoleMessages = PageDiagnostics.Attach(page);
 
     try
     {
@@ -22,7 +20,7 @@ public class SmokeTests(BikeBuilderAppFixture fixture)
       Directory.CreateDirectory(resultsDir);
       var id = Guid.NewGuid().ToString("N");
       await page.ScreenshotAsync(new() { Path = Path.Combine(resultsDir, $"failure-{id}.png"), FullPage = true });
-      await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"failure-{id}-console.log"), consoleMessages);
+      await PageDiagnostics.WriteAsync(consoleMessages, Path.Combine(resultsDir, $"failure-{id}-console.log"));
       throw;
     }
     finally
