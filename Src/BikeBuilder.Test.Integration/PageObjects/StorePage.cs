@@ -50,9 +50,16 @@ public class StorePage(IPage page, string baseUrl)
 
   public async Task SwitchToTabAsync(string tabName)
   {
+    // The old tab's cards are still in the DOM until the new catalog page renders, so a bare
+    // "first product card exists" wait passes instantly and lets the next step read (or
+    // click) the OLD tab's first product. On a loaded machine that stale read is the norm,
+    // not the exception: GetFirstProductNameAsync then returns a product that's already in
+    // the cart, and RemoveItemAsync later deletes that cart row instead of the new one.
+    // Components and builds never share names, so "first product name changed" is the
+    // reliable signal that the other tab's page has actually rendered.
+    var staleFirstProduct = await GetFirstProductNameAsync();
     await page.GetByRole(AriaRole.Tab, new() { Name = tabName }).ClickAsync();
-    // Wait until the other tab's catalog page has rendered.
-    await ProductCards.First.WaitForAsync();
+    await Expect(ProductCards.First.Locator("h6")).Not.ToHaveTextAsync(staleFirstProduct, new() { Timeout = 30_000 });
   }
 
   // Click the delete button INSIDE the named cart row (it's the row's only button) rather

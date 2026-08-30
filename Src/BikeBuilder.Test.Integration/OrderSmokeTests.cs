@@ -22,6 +22,9 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
       var id = Guid.NewGuid().ToString("N");
       await storePage.ScreenshotAsync(new() { Path = Path.Combine(resultsDir, $"failure-{id}.png"), FullPage = true });
       await PageDiagnostics.WriteAsync(consoleMessages, Path.Combine(resultsDir, $"failure-{id}-console.log"));
+      // The storefront is Blazor Server: the interesting traffic (GraphQL mutations,
+      // resilience retries) only shows in the apps' own logs, not the browser's.
+      await fixture.DumpResourceLogsAsync($"failure-{id}");
       throw;
     }
     finally

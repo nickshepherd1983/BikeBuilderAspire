@@ -186,7 +186,13 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     }
   }
 
-  async Task DumpResourceLogsAsync()
+  /// <summary>
+  /// Dumps every resource's state and console output into TestResults. Called on startup
+  /// failure, and available to tests so a scenario failure can capture the apps' logs
+  /// (Blazor Server keeps all app logic server-side, so the browser console alone says
+  /// nothing about GraphQL/HTTP traffic).
+  /// </summary>
+  public async Task DumpResourceLogsAsync(string prefix = "startup")
   {
     var resultsDir = Path.Combine(AppContext.BaseDirectory, "TestResults");
     Directory.CreateDirectory(resultsDir);
@@ -209,7 +215,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     {
       // Expected - the stream stays open for future events.
     }
-    await File.WriteAllLinesAsync(Path.Combine(resultsDir, "startup-states.log"),
+    await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"{prefix}-states.log"),
         states.Select(kv => $"{kv.Key}: {kv.Value}"));
 
     var loggerService = _app.Services.GetRequiredService<ResourceLoggerService>();
@@ -243,7 +249,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
       }
 
       if (lines.Count > 0)
-        await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"startup-{resource.Name}.log"), lines);
+        await File.WriteAllLinesAsync(Path.Combine(resultsDir, $"{prefix}-{resource.Name}.log"), lines);
     }
   }
 
