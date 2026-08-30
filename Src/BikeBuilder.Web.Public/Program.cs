@@ -14,9 +14,12 @@ builder.AddServiceDefaults(configureTracing: tracing => tracing
     .AddSource("Microsoft.AspNetCore.SignalR.Server") // client-invoked hub methods, if any appear
 );
 
-// Add services to the container.
+// Add services to the container. InteractiveAuto needs both runtimes registered: the first
+// visit interacts over a server circuit while the WebAssembly runtime downloads in the
+// background, and later visits render client-side out of BikeBuilder.Web.Public.Client.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddInteractiveWebAssemblyComponents();
 
 builder.Services.AddMudServices();
 builder.Services.AddSignalR();
@@ -65,6 +68,9 @@ builder.Services.AddHttpClient("catalog-images", client => client.BaseAddress = 
 builder.Services.AddOrdersClient()
     .ConfigureHttpClient(client => client.BaseAddress = ordersGraphQLAddress);
 builder.Services.AddScoped<OrderState>();
+// The browser resolves the notification hub from its own origin; on the circuit the page
+// runs in this process, which needs Kestrel's actual bound address instead.
+builder.Services.AddScoped<INotificationsHubUrlProvider, ServerNotificationsHubUrlProvider>();
 
 // The WASM app's order-toast hub connection is cross-origin; SignalR negotiation needs
 // explicit origins + credentials. WebAppOrigins is injected by the AppHost.
@@ -76,7 +82,11 @@ builder.Services.AddCors(options => options.AddPolicy("WasmNotificationsClient",
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
+{
+  app.UseWebAssemblyDebugging();
+}
+else
 {
   app.UseExceptionHandler("/Error", createScopeForErrors: true);
   // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
@@ -89,8 +99,12 @@ app.UseCors();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+// CatalogClient as the marker type: both assemblies share the root namespace, so Program
+// and _Imports would be ambiguous here.
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(CatalogClient).Assembly);
 
 app.MapHub<NotificationHub>("/hubs/notifications").RequireCors("WasmNotificationsClient");
 

@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+@using Microsoft.AspNetCore.Http
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -12,14 +13,33 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["BikeBuilder.Web.Public.styles.css"]" />
     <ImportMap />
-    <HeadOutlet @rendermode="InteractiveServer" />
+    <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="PageRenderMode" />
     <ReconnectModal />
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script>
+        // .NET 10 doesn't forward the hosting environment to the browser, so the WASM half
+        // of InteractiveAuto picks its wwwroot/appsettings.{env}.json by the one signal the
+        // browser has: the fixed test origin the Aspire AppHost pins (same trick as
+        // BikeBuilder.Web's index.html).
+        Blazor.start(location.host === "127.0.0.1:18300"
+            ? { webAssembly: { environment: "IntegrationTest" } }
+            : {});
+    </script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] public required HttpContext HttpContext { get; set; }
+
+    // Global InteractiveAuto (per-page render modes would leave MainLayout static and kill
+    // MudBlazor's dialog/snackbar/popover providers), except for pages that opt out via
+    // [ExcludeFromInteractiveRouting] - Error needs the real HttpContext.
+    IComponentRenderMode? PageRenderMode
+        => HttpContext.AcceptsInteractiveRouting() ? InteractiveAuto : null;
+}

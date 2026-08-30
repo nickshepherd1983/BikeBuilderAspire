@@ -19,7 +19,8 @@ land in real time on a public site.
 | `BikeBuilder.API` | ASP.NET Core gRPC API (EF Core + SQL Server), component image upload to Azure Blob Storage, publishes events to Service Bus; catalog reads are anonymous so the storefront can browse |
 | `BikeBuilder.API.Orders` | HotChocolate GraphQL orders microservice with its own SQL Server database (a discrete bounded context); snapshots catalog prices via gRPC-Web and publishes OrderPlaced events to Service Bus |
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
-| `BikeBuilder.Web.Public` | Blazor Server public site: live activity toasts (Service Bus → SignalR) plus a guest-checkout storefront (StrawberryShake GraphQL client) |
+| `BikeBuilder.Web.Public` | Blazor Web App public site rendering InteractiveAuto — the first visit runs on a server circuit while the WebAssembly runtime downloads, later visits run in the browser: live activity toasts (Service Bus → SignalR) plus a guest-checkout storefront (StrawberryShake GraphQL client) |
+| `BikeBuilder.Web.Public.Client` | The storefront's WebAssembly half: the interactive components and their catalog gRPC-Web / orders GraphQL clients, which call those services directly from the browser once running client-side |
 | `BikeBuilder.Contracts` | Shared event/message contracts |
 | `BikeBuilder.DataSeeder` | Console tool that fills the local dev stack with 1000+ real-sounding components, 100 bike builds, and 1–30 ratings each |
 | `BikeBuilder.Test.Integration` | End-to-end smoke tests: the Aspire testing host boots the whole system (with a stub OIDC issuer standing in for Auth0) and Playwright drives the real UI, recording video |

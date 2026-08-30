@@ -1,5 +1,7 @@
 Src/BikeBuilder.Web.Public/bin/
 Src/BikeBuilder.Web.Public/obj/
+Src/BikeBuilder.Web.Public.Client/bin/
+Src/BikeBuilder.Web.Public.Client/obj/
 Src/BikeBuilder.Contracts/bin/
 Src/BikeBuilder.Contracts/obj/
 Tools/

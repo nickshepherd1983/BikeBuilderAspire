@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The interactive components moved here from BikeBuilder.Web.Public keep their
+         original namespaces: the Razor compiler derives each generated class's namespace
+         from the root namespace, and the .razor.cs partials still say BikeBuilder.Web.Public. -->
+    <RootNamespace>BikeBuilder.Web.Public</RootNamespace>
+    <!-- Same reason as BikeBuilder.Web: the WASM HTTP client's streaming response mode
+         breaks gRPC-Web calls with "Failed to fetch". -->
+    <WasmEnableStreamingResponse>false</WasmEnableStreamingResponse>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same proto-sharing pattern as BikeBuilder.Web: compile the API's protos as clients
+         for the storefront catalog. -->
+    <Protobuf Include="..\BikeBuilder.API\Protos\component.proto" GrpcServices="Client" Link="Protos\component.proto" />
+    <Protobuf Include="..\BikeBuilder.API\Protos\bikebuild.proto" GrpcServices="Client" Link="Protos\bikebuild.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.36.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.83.0" />
+    <PackageReference Include="Grpc.Net.Client.Web" Version="2.83.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.83.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
+    <PackageReference Include="MudBlazor" Version="9.9.0" />
+    <PackageReference Include="StrawberryShake.Blazor" Version="16.6.2" />
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.33.0.1635">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

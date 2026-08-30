@@ -13,6 +13,7 @@ var lifetime = isTest ? ContainerLifetime.Session : ContainerLifetime.Persistent
 // fixture's history). The issuer the browser uses must equal the token's iss claim, so the
 // API and Ratings validate against this same URI.
 const string TestWebBaseAddress = "http://127.0.0.1:18200";
+const string TestWebPublicBaseAddress = "http://127.0.0.1:18300";
 const string TestOidcIssuer = "http://127.0.0.1:18400";
 const string OidcAudience = "bikebuilder-api";
 const string OidcClientId = "bikebuilder-web";
@@ -216,6 +217,12 @@ if (isTest)
 }
 webPublic.WithHttpHealthCheck("/");
 
+// Under InteractiveAuto the storefront's WebAssembly half calls these two services straight
+// from the browser (catalog gRPC-Web, orders GraphQL), so their CORS has to allow the
+// storefront's own origins on top of the signed-in web app's.
+WithStorefrontOrigins(api);
+WithStorefrontOrigins(orders);
+
 // On-demand from the dashboard (or `aspire run`): seeds 1000+ components, 100 builds, and
 // ratings. Explicit start because seeding is a deliberate act, not part of app startup.
 builder.AddProject<Projects.BikeBuilder_DataSeeder>("dataseeder")
@@ -239,5 +246,22 @@ void WithWebAppOrigins<T>(IResourceBuilder<T> resource) where T : IResourceWithE
 
     context.EnvironmentVariables["WebAppOrigins__0"] = web.GetEndpoint("https");
     context.EnvironmentVariables["WebAppOrigins__1"] = web.GetEndpoint("http");
+  });
+}
+
+// Appends the storefront's origins to the same WebAppOrigins array, at indices the helper
+// above doesn't use (it writes __0/__1 in dev and only __0 in test).
+void WithStorefrontOrigins<T>(IResourceBuilder<T> resource) where T : IResourceWithEnvironment
+{
+  resource.WithEnvironment(context =>
+  {
+    if (isTest)
+    {
+      context.EnvironmentVariables["WebAppOrigins__1"] = TestWebPublicBaseAddress;
+      return;
+    }
+
+    context.EnvironmentVariables["WebAppOrigins__2"] = webPublic.GetEndpoint("https");
+    context.EnvironmentVariables["WebAppOrigins__3"] = webPublic.GetEndpoint("http");
   });
 }

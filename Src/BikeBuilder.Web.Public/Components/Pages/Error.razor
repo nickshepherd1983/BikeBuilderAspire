@@ -1,4 +1,7 @@
 @page "/Error"
+@* Opts this page out of interactive routing (see App.razor's PageRenderMode): it renders
+   statically on the server, which is the only way its cascading HttpContext exists. *@
+@attribute [ExcludeFromInteractiveRouting]
 
 <PageTitle>Error</PageTitle>
 

@@ -8,24 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Same proto-sharing pattern as BikeBuilder.Web: compile the API's protos as clients
-         for the storefront catalog. -->
-    <Protobuf Include="..\BikeBuilder.API\Protos\component.proto" GrpcServices="Client" Link="Protos\component.proto" />
-    <Protobuf Include="..\BikeBuilder.API\Protos\bikebuild.proto" GrpcServices="Client" Link="Protos\bikebuild.proto" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Aspire.Azure.Messaging.ServiceBus" Version="13.5.3" />
-    <PackageReference Include="Google.Protobuf" Version="3.36.0" />
     <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
     <PackageReference Include="Grpc.Net.Client.Web" Version="2.83.0" />
-    <PackageReference Include="Grpc.Tools" Version="2.83.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />
+    <!-- Version-locked with the Client project - the server prerenders every Mud component. -->
     <PackageReference Include="MudBlazor" Version="9.9.0" />
-    <PackageReference Include="StrawberryShake.Server" Version="16.6.2" />
     <PackageReference Include="SonarAnalyzer.CSharp" Version="10.33.0.1635">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -35,6 +23,10 @@
   <ItemGroup>
     <ProjectReference Include="..\BikeBuilder.Contracts\BikeBuilder.Contracts.csproj" />
     <ProjectReference Include="..\BikeBuilder.ServiceDefaults\BikeBuilder.ServiceDefaults.csproj" />
+    <!-- The interactive components, catalog/orders clients, and generated proto + GraphQL
+         types all live in the Client project so they can run in WebAssembly; the server
+         reuses them for prerendering and the server-circuit phase of InteractiveAuto. -->
+    <ProjectReference Include="..\BikeBuilder.Web.Public.Client\BikeBuilder.Web.Public.Client.csproj" />
   </ItemGroup>
 
 </Project>
