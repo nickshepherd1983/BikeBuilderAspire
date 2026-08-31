@@ -33,6 +33,28 @@
             </MudCardActions>
         </MudCard>
     </MudItem>
+    <MudItem xs="12" sm="6">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Orders</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">Everything customers have bought from the public store.</MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="orders" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Orders</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">In Process</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">Carts shoppers are still filling in, until they check out or expire.</MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="orders/in-process" EndIcon="@Icons.Material.Filled.ArrowForward">Go to In Process</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
 </MudGrid>
     </Authorized>
 </AuthorizeView>
