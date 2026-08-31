@@ -39,12 +39,12 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
   {
     const string buyerName = "Playwright Buyer";
     var store = new StorePage(storePageRaw, fixture.WebPublicBaseAddress);
-    var notifications = new NotificationHomePage(notificationPage, fixture.WebPublicBaseAddress);
+    var notifications = new NotificationFeedPage(notificationPage, fixture.WebPublicBaseAddress);
 
     // Log into the WASM app first (the first navigation drives the stub OIDC login):
     // MainLayout's OrderNotificationsConnection connects to Web.Public's hub once the user
     // is authorized, and it must be live before the order below is processed. The settle
-    // delay follows the same convention as NotificationHomePage.GotoAsync.
+    // delay follows the same convention as NotificationFeedPage.GotoAsync.
     await NavigationHelper.GotoAndWaitForHeadingAsync(wasmPage, $"{fixture.WebBaseAddress}/components", "Components");
     await Task.Delay(TimeSpan.FromSeconds(5));
 

@@ -1,7 +1,8 @@
 ﻿namespace BikeBuilder.Test.Integration.PageObjects;
 
-// Drives the Web.Public storefront at /store: browse the catalog tabs, build up a guest
-// cart, and process the order.
+// Drives the Web.Public storefront: browse the catalog tabs, build up a guest cart, and
+// process the order. Navigates via /store (also the site homepage at /) to keep the alias
+// route covered.
 public class StorePage(IPage page, string baseUrl)
 {
   public async Task GotoAsync()
@@ -10,7 +11,7 @@ public class StorePage(IPage page, string baseUrl)
     await page.GetByRole(AriaRole.Heading, new() { Name = "Store", Exact = true }).WaitForAsync();
 
     // The heading prerenders before the interactive circuit is up (and the circuit is what
-    // loads the catalog and cart) - same settle convention as NotificationHomePage.
+    // loads the catalog and cart) - same settle convention as NotificationFeedPage.
     await Task.Delay(TimeSpan.FromSeconds(5));
   }
 

@@ -34,17 +34,26 @@ public class SmokeTests(BikeBuilderAppFixture fixture)
   {
     var components = new ComponentsPage(page, fixture.WebBaseAddress);
     var bikeBuilds = new BikeBuildsPage(page, fixture.WebBaseAddress);
-    var notifications = new NotificationHomePage(notificationPage, fixture.WebPublicBaseAddress);
+    var notifications = new NotificationFeedPage(notificationPage, fixture.WebPublicBaseAddress);
 
     // The fixture pre-seeds 1000+ components and the grid is paginated in name order, so
     // the test component's name must sort ahead of every seeded brand to stay on page 1.
     const string frameName = "AAA Carbon Frame";
     const string buildName = "Full Smoke Ride";
 
+    // Connect to Web.Public before anything is created, so its SignalR connection is already
+    // established and can't miss a notification. MainLayout owns that connection, so any
+    // route works - this parks on the homepage (the storefront).
+    await notifications.GotoAsync();
+
     // First navigation drives the stub OIDC login flow - this is the "log in" step.
     await components.GotoAsync();
     await components.AddComponentAsync(frameName, "899.99", "Lightweight frame", sku: "CF-1001", manufacturer: "Hope");
     Assert.True(await components.RowContainsAsync(frameName, "CF-1001", "Hope"));
+
+    // Snackbar toasts auto-dismiss, so each creation's toast is checked right after the
+    // action that publishes it rather than batched at the end.
+    await notifications.WaitForNotificationAsync($"New component added: {frameName}");
 
     var imagePath = Path.Combine(AppContext.BaseDirectory, "TestAssets", "test-image.png");
     await components.UploadImageToRowAsync(frameName, imagePath);
@@ -80,10 +89,6 @@ public class SmokeTests(BikeBuilderAppFixture fixture)
     await Expect(components.Row(frameName)).ToBeHiddenAsync(new() { Timeout = 30_000 });
     await components.SortByAsync("Name");
     await Expect(components.Row(frameName)).ToBeVisibleAsync(new() { Timeout = 30_000 });
-
-    // Connect to Web.Public before creating the BikeBuild so its SignalR connection is
-    // already established and can't miss any of the notifications below.
-    await notifications.GotoAsync();
 
     await bikeBuilds.GotoAsync();
     var editPage = await bikeBuilds.CreateBikeBuildAsync(buildName, "Build for full smoke test");
