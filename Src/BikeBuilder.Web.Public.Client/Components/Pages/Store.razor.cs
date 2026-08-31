@@ -19,8 +19,10 @@ public partial class Store(
   int _page = 1;
   int _totalCount;
   IReadOnlyList<CatalogProduct> _products = [];
-  // The generated fragment interface - every mutation payload in Orders.graphql implements it.
-  IOrderParts? _order;
+  // The generated fragment interface for the in-progress cart - every draft-returning
+  // operation in Orders.graphql implements it. Processing answers with a placed Order
+  // instead, which is why that one result isn't assigned back here.
+  IDraftOrderParts? _order;
 
   int PageCount => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
 
@@ -33,15 +35,15 @@ public partial class Store(
 
     await LoadProductsAsync();
 
-    // Pick up a draft order from a previous visit; discard it if it's gone or already placed.
+    // Pick up a draft order from a previous visit. Drafts live in Redis under a one-hour
+    // sliding TTL, so a null answer means it expired (or was already processed) - either
+    // way the stored id is dead and the visitor starts fresh.
     var orderId = await _orderState.GetOrderIdAsync();
     if (orderId is not null)
     {
-      var result = await _ordersClient.GetOrder.ExecuteAsync(orderId.Value);
-      var order = result.Data?.Order;
-      if (order is not null && order.Status == OrderStatus.Draft)
-        _order = order;
-      else
+      var result = await _ordersClient.GetDraftOrder.ExecuteAsync(orderId.Value);
+      _order = result.Data?.DraftOrder;
+      if (_order is null)
         await _orderState.ClearAsync();
     }
   }
@@ -74,7 +76,7 @@ public partial class Store(
   }
 
   // The fragment's item interface is named after the first operation that uses it.
-  async Task RemoveItemAsync(IGetOrder_Order_Items item)
+  async Task RemoveItemAsync(IGetDraftOrder_DraftOrder_Items item)
   {
     if (_order is null)
       return;

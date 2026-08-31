@@ -1,8 +1,7 @@
-fragment OrderParts on Order {
+fragment DraftOrderParts on DraftOrder {
   id
   customerName
   customerEmail
-  status
   total
   items {
     id
@@ -15,32 +14,41 @@ fragment OrderParts on Order {
   }
 }
 
-query GetOrder($id: Int!) {
-  order(id: $id) {
-    ...OrderParts
+# Processing swaps the Redis draft for a real SQL order, so that one mutation answers with
+# the placed Order rather than a draft - hence its own fragment.
+fragment PlacedOrderParts on Order {
+  id
+  customerName
+  status
+  total
+}
+
+query GetDraftOrder($id: UUID!) {
+  draftOrder(id: $id) {
+    ...DraftOrderParts
   }
 }
 
 mutation CreateOrder($customerName: String!, $customerEmail: String) {
   createOrder(customerName: $customerName, customerEmail: $customerEmail) {
-    ...OrderParts
+    ...DraftOrderParts
   }
 }
 
-mutation AddOrderItem($orderId: Int!, $productType: ProductType!, $productId: Int!, $quantity: Int!) {
+mutation AddOrderItem($orderId: UUID!, $productType: ProductType!, $productId: Int!, $quantity: Int!) {
   addOrderItem(orderId: $orderId, productType: $productType, productId: $productId, quantity: $quantity) {
-    ...OrderParts
+    ...DraftOrderParts
   }
 }
 
-mutation RemoveOrderItem($orderId: Int!, $orderItemId: Int!) {
+mutation RemoveOrderItem($orderId: UUID!, $orderItemId: UUID!) {
   removeOrderItem(orderId: $orderId, orderItemId: $orderItemId) {
-    ...OrderParts
+    ...DraftOrderParts
   }
 }
 
-mutation ProcessOrder($orderId: Int!) {
+mutation ProcessOrder($orderId: UUID!) {
   processOrder(orderId: $orderId) {
-    ...OrderParts
+    ...PlacedOrderParts
   }
 }

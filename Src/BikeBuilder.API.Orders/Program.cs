@@ -26,6 +26,14 @@ builder.Services.AddDbContextFactory<OrdersDbContext>(options =>
 if (ordersConnectionString is not null)
   builder.EnrichSqlServerDbContext<OrdersDbContext>();
 
+// Unsubmitted carts. Same null-guard reasoning as the DbContext above: AddRedisClient throws
+// during registration when no connection string is injected, which would break EF design-time
+// work and standalone schema exports. The store itself is always registered so the GraphQL
+// schema stays complete - without Redis its resolvers simply fail when executed.
+if (builder.Configuration.GetConnectionString("cache") is not null)
+  builder.AddRedisClient("cache");
+builder.Services.AddScoped<DraftOrderStore>();
+
 builder.AddAzureServiceBusClient("servicebus");
 builder.Services.AddSingleton(sp => sp.GetRequiredService<ServiceBusClient>().CreateSender(ServiceBusQueueNames.Notifications));
 builder.Services.AddSingleton<IEventPublisher, ServiceBusEventPublisher>();

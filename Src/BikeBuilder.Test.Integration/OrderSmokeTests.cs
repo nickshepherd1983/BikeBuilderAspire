@@ -70,6 +70,12 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
     // ...and prove the RIGHT item survived the removal.
     await Expect(store.CartItem(componentName)).ToBeVisibleAsync(new() { Timeout = 30_000 });
 
+    // The unsubmitted cart lives in Redis, not SQL, and the back office can see it there
+    // while the shopper is still deciding.
+    var inProcessOrders = new InProcessOrdersPage(wasmPage, fixture.WebBaseAddress);
+    await inProcessOrders.GotoAsync();
+    await Expect(inProcessOrders.Row(buyerName)).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
     await store.ProcessOrderAsync();
     await store.WaitForOrderConfirmationAsync(buyerName);
 
@@ -82,6 +88,11 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
 
     // Processing cleared the stored draft-order id, so the cart is empty again.
     await Expect(store.EmptyCartMessage).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+    // Processing claimed the draft out of Redis, so it drops off the in-process list. The
+    // page polls every 5s, so Expect's own polling is what absorbs that lag.
+    await inProcessOrders.GotoAsync();
+    await Expect(inProcessOrders.Row(buyerName)).ToBeHiddenAsync(new() { Timeout = 30_000 });
 
     // Back office: the signed-in web app's Orders page lists the placed order - buyer,
     // status, and the single purchased item.

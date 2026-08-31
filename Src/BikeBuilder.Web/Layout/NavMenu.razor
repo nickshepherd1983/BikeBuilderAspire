@@ -3,6 +3,9 @@
     <AuthorizeView>
         <MudNavLink Href="components" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Settings">Components</MudNavLink>
         <MudNavLink Href="bikebuilds" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.PedalBike">Bike Builds</MudNavLink>
-        <MudNavLink Href="orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCart">Orders</MudNavLink>
+        @* Match.All on both: /orders/in-process is a prefix of /orders, so Prefix here would
+           light up Orders as well whenever the in-process page is open. *@
+        <MudNavLink Href="orders" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.ShoppingCart">Orders</MudNavLink>
+        <MudNavLink Href="orders/in-process" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.PendingActions">In Process</MudNavLink>
     </AuthorizeView>
 </MudNavMenu>

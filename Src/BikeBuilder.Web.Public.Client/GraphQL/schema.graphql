@@ -6,18 +6,20 @@ schema {
 type Query {
   order(id: Int!): Order
   orders: [Order!]!
+  draftOrder(id: UUID!): DraftOrder
+  draftOrders: [DraftOrder!]!
 }
 
 type Mutation {
-  createOrder(customerName: String!, customerEmail: String): Order!
+  createOrder(customerName: String!, customerEmail: String): DraftOrder!
   addOrderItem(
-    orderId: Int!
+    orderId: UUID!
     productType: ProductType!
     productId: Int!
     quantity: Int!
-  ): Order!
-  removeOrderItem(orderId: Int!, orderItemId: Int!): Order!
-  processOrder(orderId: Int!): Order!
+  ): DraftOrder!
+  removeOrderItem(orderId: UUID!, orderItemId: UUID!): DraftOrder!
+  processOrder(orderId: UUID!): Order!
 }
 
 "Defines when a policy shall be executed."
@@ -57,8 +59,30 @@ type OrderItem {
   lineTotal: Decimal!
 }
 
+type DraftOrder {
+  id: UUID!
+  customerName: String!
+  customerEmail: String
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  items: [DraftOrderItem!]!
+  total: Decimal!
+}
+
+type DraftOrderItem {
+  id: UUID!
+  productType: ProductType!
+  productId: Int!
+  productName: String!
+  unitPrice: Decimal!
+  quantity: Int!
+  lineTotal: Decimal!
+}
+
 "The `DateTime` scalar type represents a date and time with time zone offset information."
 scalar DateTime
+
+scalar UUID
 
 enum OrderStatus {
   DRAFT

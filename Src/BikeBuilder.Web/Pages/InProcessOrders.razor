@@ -1,0 +1,53 @@
+@page "/orders/in-process"
+@attribute [Authorize]
+
+<PageTitle>In Process Orders</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">In Process Orders</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Carts shoppers are still filling in. These live in the cache, not the database — each one
+    expires an hour after it was last touched, and this list refreshes itself.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Class="ma-8" />
+}
+else if (_drafts.Count == 0)
+{
+    <MudText>Nobody is mid-order right now.</MudText>
+}
+else
+{
+    <MudTable Items="_drafts" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Customer</MudTh>
+            <MudTh>Started</MudTh>
+            <MudTh>Expires in</MudTh>
+            <MudTh>Items</MudTh>
+            <MudTh Style="text-align: right;">Total</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Customer">
+                <MudText Typo="Typo.body2">@context.CustomerName</MudText>
+                @if (context.CustomerEmail is not null)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.CustomerEmail</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Started">@context.CreatedAt.LocalDateTime.ToString("g")</MudTd>
+            <MudTd DataLabel="Expires in">
+                <MudChip T="string" Size="Size.Small" Color="@ExpiryColour(context)">
+                    @FormatTimeRemaining(context)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Items">
+                @foreach (var item in context.Items)
+                {
+                    <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity — @item.LineTotal.ToString("C2")</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Total" Style="text-align: right;">@context.Total.ToString("C2")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}

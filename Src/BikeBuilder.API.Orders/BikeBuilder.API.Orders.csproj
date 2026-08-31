@@ -16,6 +16,8 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Azure.Messaging.ServiceBus" Version="13.5.3" />
     <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.5.3" />
+    <!-- Draft carts live in Redis with a TTL; only placed orders reach SQL. -->
+    <PackageReference Include="Aspire.StackExchange.Redis" Version="13.5.3" />
     <PackageReference Include="Google.Protobuf" Version="3.36.0" />
     <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
     <PackageReference Include="Grpc.Net.Client.Web" Version="2.83.0" />

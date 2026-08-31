@@ -32,6 +32,11 @@ var db = sql.AddDatabase("BikeBuilderDb");
 // The Orders bounded context gets its own logical database on the same server container.
 var ordersDb = sql.AddDatabase("BikeBuilderOrdersDb");
 
+// Unsubmitted guest carts. Everything in here is disposable and expires within the hour, so
+// unlike sql/cosmos it gets no data volume even outside tests - a restart losing in-flight
+// carts is the same outcome as the TTL firing.
+var cache = builder.AddRedis("cache").WithLifetime(lifetime);
+
 var storage = builder.AddAzureStorage("storage")
     .RunAsEmulator(azurite =>
     {
@@ -154,9 +159,11 @@ api.WithHttpHealthCheck("/");
 
 // Orders: GraphQL storefront backend. References the api for catalog price snapshots at
 // add-to-order time. Auth0 guards the back-office orders query; guest checkout is anonymous.
+// Draft carts live in the cache (with a TTL); only placed orders reach ordersDb.
 var orders = builder.AddProject<Projects.BikeBuilder_API_Orders>("orders",
         options => options.ExcludeLaunchProfile = isTest)
     .WithReference(ordersDb).WaitFor(ordersDb)
+    .WithReference(cache).WaitFor(cache)
     .WithReference(serviceBus).WaitFor(serviceBus)
     .WithReference(api).WaitFor(api)
     .WithEnvironment("Auth0__Authority", isTest ? TestOidcIssuer : Auth0Authority)
