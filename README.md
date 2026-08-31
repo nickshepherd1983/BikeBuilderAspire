@@ -26,6 +26,122 @@ guest-checkout storefront, and watch activity land in real time on a public site
 | `BikeBuilder.DataSeeder` | Console tool that fills the local dev stack with 1000+ real-sounding components, 100 bike builds, and 1–30 ratings each |
 | `BikeBuilder.Test.Integration` | End-to-end smoke tests: the Aspire testing host boots the whole system (with a stub OIDC issuer standing in for Auth0) and Playwright drives the real UI, recording video |
 
+## Architecture
+
+### At run time
+
+```mermaid
+flowchart TB
+    subgraph browser["Browser"]
+        web["BikeBuilder.Web<br/>Blazor WASM · :7200"]
+        client["Web.Public.Client<br/>storefront components"]
+    end
+
+    subgraph apps["Apps — orchestrated by the AppHost"]
+        webpublic["web-public<br/>Blazor Web App · :7300<br/>SignalR hub"]
+        orders["orders<br/>GraphQL · :7400"]
+        api["api<br/>gRPC catalog · :7100"]
+        ratings["ratings<br/>Functions · :7071"]
+    end
+
+    subgraph backing["Backing services — containers"]
+        sql[("SQL Server<br/>BikeBuilderDb<br/>BikeBuilderOrdersDb")]
+        redis[("Redis<br/>draft carts · 1h TTL")]
+        blob[("Azurite<br/>component-images")]
+        bus{{"Service Bus<br/>bikebuilder-notifications"}}
+        cosmos[("Cosmos<br/>ratings")]
+    end
+
+    web -->|gRPC-Web| api
+    web -->|GraphQL| orders
+    web -->|REST| ratings
+    web -->|SignalR| webpublic
+    client -->|gRPC-Web| api
+    client -->|GraphQL| orders
+    client -->|SignalR| webpublic
+
+    webpublic -->|catalog + image proxy| api
+    webpublic -->|GraphQL| orders
+    webpublic -->|consume, rebroadcast| bus
+    orders -->|price snapshot| api
+    orders -->|carts| redis
+    orders --> sql
+    orders -->|publish OrderPlaced| bus
+    api --> sql
+    api --> blob
+    api -->|publish| bus
+    ratings --> cosmos
+    ratings -->|publish| bus
+```
+
+`Web.Public.Client` sits in the Browser box because that is where it ends up: the storefront
+renders InteractiveAuto, so its components run on a server circuit inside `web-public` on the
+first visit and in the browser once the WebAssembly runtime is cached. Note that `orders`
+snapshots prices from `api` rather than reaching into the catalog database — they are separate
+bounded contexts. The `dataseeder` app is left out; it touches SQL and Cosmos directly and only
+runs when you start it by hand.
+
+### Project references
+
+```mermaid
+flowchart LR
+    subgraph roots["Hosts &amp; tools"]
+        apphost["BikeBuilder.AppHost"]
+        tests["BikeBuilder.Test.Integration"]
+        seeder["BikeBuilder.DataSeeder"]
+    end
+
+    subgraph services["Services"]
+        api["BikeBuilder.API<br/>owns Protos/*.proto"]
+        orders["BikeBuilder.API.Orders"]
+        ratings["BikeBuilder.API.Ratings"]
+        notifications["BikeBuilder.API.Notifications<br/>deploy-only"]
+    end
+
+    subgraph frontends["Front ends"]
+        web["BikeBuilder.Web"]
+        webpublic["BikeBuilder.Web.Public"]
+        client["BikeBuilder.Web.Public.Client"]
+    end
+
+    subgraph shared["Shared"]
+        contracts["BikeBuilder.Contracts"]
+        defaults["BikeBuilder.ServiceDefaults"]
+    end
+
+    api --> shared
+    orders --> shared
+    ratings --> shared
+    notifications --> shared
+    webpublic --> shared
+    web --> contracts
+
+    webpublic --> client
+    seeder --> api
+
+    apphost --> api
+    apphost --> orders
+    apphost --> ratings
+    apphost --> web
+    apphost --> webpublic
+    apphost --> seeder
+    tests --> apphost
+    tests --> api
+    tests --> seeder
+
+    orders -.-> api
+    web -.-> api
+    client -.-> api
+```
+
+A solid arrow means "references"; an arrow into the Shared box means the project references
+both shared projects. Dashed arrows are **not** project references — those three compile
+`BikeBuilder.API`'s `.proto` files as gRPC *clients* through linked `<Protobuf>` items.
+
+Two absences are deliberate. `BikeBuilder.Web` references `Contracts` but not `ServiceDefaults`
+— a WebAssembly app has no server host to configure. And the AppHost does not reference
+`BikeBuilder.API.Notifications` at all, which is why it never starts locally.
+
 ## Running it
 
 Prerequisites: Docker Desktop, the .NET 10 SDK, and

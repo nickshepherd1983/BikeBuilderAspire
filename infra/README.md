@@ -3,6 +3,73 @@
 Provisions the whole system into one subscription, staying inside Azure's always-free
 grants wherever they exist.
 
+## What gets provisioned
+
+```mermaid
+flowchart TB
+    browser["Browser"]
+
+    subgraph rg["Resource group rg-bikebuilder"]
+        swa["Static Web App · Free<br/>BikeBuilder.Web"]
+
+        subgraph cae["Container Apps env · Consumption, all scale-to-zero"]
+            caapi["ca-bikebuilder-api"]
+            caorders["ca-bikebuilder-orders"]
+            cawp["ca-bikebuilder-web-public"]
+        end
+
+        func["Function App · Y1 Consumption<br/>Ratings API + notification fan-out"]
+
+        sql[("Azure SQL · free serverless<br/>BikeBuilderDb<br/>BikeBuilderOrdersDb")]
+        cosmos[("Cosmos · free tier<br/>ratings")]
+        st[("Storage account<br/>component-images blob<br/>+ Functions host storage")]
+        bus{{"Service Bus Basic<br/>bikebuilder-notifications"}}
+        sigr(["SignalR · Free_F1<br/>Serverless"])
+        redis[("Redis<br/>NOT PROVISIONED")]
+
+        obs["Log Analytics + App Insights"]
+        mi["Managed identity<br/>id-bikebuilder"]
+    end
+
+    browser -->|loads the WASM app| swa
+    browser -->|loads the storefront| cawp
+    browser -.->|gRPC-Web| caapi
+    browser -.->|GraphQL| caorders
+    browser -->|negotiate| func
+    browser -->|hub connection| sigr
+
+    caapi --> sql
+    caapi --> st
+    caapi --> bus
+    caorders --> sql
+    caorders --> bus
+    caorders -->|price snapshot| caapi
+    caorders -.->|draft carts have<br/>nowhere to live| redis
+    cawp --> caapi
+    cawp --> caorders
+
+    func -->|Service Bus trigger| bus
+    func -->|broadcast| sigr
+    func --> cosmos
+    func --> st
+
+    mi -.->|RBAC| st
+    mi -.->|RBAC| bus
+    mi -.->|RBAC| sigr
+    mi -.->|RBAC| cosmos
+    cae --> obs
+    func --> obs
+
+    style redis stroke-dasharray: 5 5
+```
+
+Two things to read off this. The notification fan-out is a **Function**, not part of the
+storefront — see [why scale-to-zero is load-bearing](#why-scale-to-zero-is-load-bearing) below;
+browsers negotiate against the Function App and then hold their connection with SignalR Service
+directly, so nothing has to stay awake. And **Redis is not provisioned**: Azure Cache for Redis
+has no free tier, so the storefront's draft carts have nowhere to live and `ca-bikebuilder-orders`
+is incomplete until one is added.
+
 ## What Bicep cannot do
 
 **Creating a tenant or a subscription is not an ARM operation.** A tenant is a Microsoft
