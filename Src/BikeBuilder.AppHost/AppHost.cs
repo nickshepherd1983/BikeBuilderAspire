@@ -230,6 +230,51 @@ webPublic.WithHttpHealthCheck("/");
 WithStorefrontOrigins(api);
 WithStorefrontOrigins(orders);
 
+// --- API gateway ------------------------------------------------------------------------
+// One constant browser-facing origin (dev 7500 / test 18700) that the WASM apps' baked
+// wwwroot/appsettings*.json base addresses point at unconditionally. It is served by either
+// the real APIM self-hosted gateway container (when the Apim:* user secrets are present -
+// see infra/README.md for provisioning and token generation) or the YARP fallback project
+// (always available: CI has no Azure credentials and must stay offline-green). Both
+// implement the same route contract: /orders and /ratings prefix-stripped, everything else
+// to the catalog api. Both branches name the resource "gateway" so the integration-test
+// fixture waits on one name regardless of mode.
+var gatewayPort = isTest ? 18700 : 7500;
+var apimConfigEndpoint = builder.Configuration["Apim:ConfigEndpoint"];
+var apimGatewayToken = builder.Configuration[isTest ? "Apim:GatewayTokenTest" : "Apim:GatewayTokenDev"];
+
+if (!string.IsNullOrWhiteSpace(apimConfigEndpoint) && !string.IsNullOrWhiteSpace(apimGatewayToken))
+{
+  // Real APIM self-hosted gateway. It pulls the API/policy config from the cloud instance,
+  // and the per-gateway policies in infra/modules/apim.bicep rewrite its backends to the
+  // host.docker.internal ports for this mode (local-dev vs local-test gateway identity).
+  builder.AddContainer("gateway", "mcr.microsoft.com/azure-api-management/gateway", "v2")
+      .WithHttpEndpoint(port: gatewayPort, targetPort: 8080)
+      .WithEnvironment("config.service.endpoint", apimConfigEndpoint)
+      .WithEnvironment("config.service.auth", $"GatewayKey {apimGatewayToken}")
+      // No-op on Docker Desktop (the name is built in); makes a native-Linux engine work too.
+      .WithContainerRuntimeArgs("--add-host=host.docker.internal:host-gateway")
+      // Healthy means the gateway authenticated to the config endpoint and is serving.
+      .WithHttpHealthCheck("/status-0123456789abcdef")
+      .WithLifetime(lifetime);
+}
+else
+{
+  var gatewayFallback = builder.AddProject<Projects.BikeBuilder_Gateway>("gateway",
+          options => options.ExcludeLaunchProfile = isTest)
+      // The route table lives in the project's appsettings.json; only the destinations are
+      // mode-dependent. No WaitFor on the backends - the proxy just 502s until they're up.
+      .WithEnvironment("ReverseProxy__Clusters__api__Destinations__default__Address", api.GetEndpoint("http"))
+      .WithEnvironment("ReverseProxy__Clusters__orders__Destinations__default__Address", orders.GetEndpoint("http"))
+      .WithEnvironment("ReverseProxy__Clusters__ratings__Destinations__default__Address", ratings.GetEndpoint("http"));
+  if (isTest)
+  {
+    gatewayFallback.WithHttpEndpoint(port: gatewayPort)
+        .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+  }
+  gatewayFallback.WithHttpHealthCheck("/healthz");
+}
+
 // On-demand from the dashboard (or `aspire run`): seeds 1000+ components, 100 builds, and
 // ratings. Explicit start because seeding is a deliberate act, not part of app startup.
 builder.AddProject<Projects.BikeBuilder_DataSeeder>("dataseeder")

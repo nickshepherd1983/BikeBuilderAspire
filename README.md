@@ -21,7 +21,8 @@ guest-checkout storefront, and watch activity land in real time on a public site
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
 | `BikeBuilder.API.Notifications` | **Deploy-only — not part of the local AppHost topology.** Azure Functions fan-out that replaces the storefront's in-process SignalR hub when deployed, where scale-to-zero forbids an always-on consumer: a Service Bus trigger pushing to Azure SignalR Service in Serverless mode |
 | `BikeBuilder.Web.Public` | Blazor Web App public site rendering InteractiveAuto — the first visit runs on a server circuit while the WebAssembly runtime downloads, later visits run in the browser: the guest-checkout storefront (StrawberryShake GraphQL client) as its landing page, with live activity toasts (Service Bus → SignalR) owned by the layout so they follow you across every page |
-| `BikeBuilder.Web.Public.Client` | The storefront's WebAssembly half: the interactive components and their catalog gRPC-Web / orders GraphQL clients, which call those services directly from the browser once running client-side |
+| `BikeBuilder.Web.Public.Client` | The storefront's WebAssembly half: the interactive components and their catalog gRPC-Web / orders GraphQL clients, which call those services through the API gateway once running client-side |
+| `BikeBuilder.Gateway` | YARP stand-in for the API gateway: serves the gateway port with the same routes as the Azure API Management APIs whenever no APIM connection is configured (CI, or a dev machine without the `Apim:*` user secrets) |
 | `BikeBuilder.Contracts` | Shared event/message contracts |
 | `BikeBuilder.DataSeeder` | Console tool that fills the local dev stack with 1000+ real-sounding components, 100 bike builds, and 1–30 ratings each |
 | `BikeBuilder.Test.Integration` | End-to-end smoke tests: the Aspire testing host boots the whole system (with a stub OIDC issuer standing in for Auth0) and Playwright drives the real UI, recording video |
@@ -38,6 +39,7 @@ flowchart TB
     end
 
     subgraph apps["Apps — orchestrated by the AppHost"]
+        gateway["gateway · :7500<br/>APIM self-hosted container<br/>or YARP fallback"]
         webpublic["web-public<br/>Blazor Web App · :7300<br/>SignalR hub"]
         orders["orders<br/>GraphQL · :7400"]
         api["api<br/>gRPC catalog · :7100"]
@@ -52,13 +54,14 @@ flowchart TB
         cosmos[("Cosmos<br/>ratings")]
     end
 
-    web -->|gRPC-Web| api
-    web -->|GraphQL| orders
-    web -->|REST| ratings
+    web -->|gRPC-Web · GraphQL · REST| gateway
     web -->|SignalR| webpublic
-    client -->|gRPC-Web| api
-    client -->|GraphQL| orders
+    client -->|gRPC-Web · GraphQL| gateway
     client -->|SignalR| webpublic
+
+    gateway -->|/ catch-all| api
+    gateway -->|/orders| orders
+    gateway -->|/ratings| ratings
 
     webpublic -->|catalog + image proxy| api
     webpublic -->|GraphQL| orders
@@ -80,6 +83,13 @@ first visit and in the browser once the WebAssembly runtime is cached. Note that
 snapshots prices from `api` rather than reaching into the catalog database — they are separate
 bounded contexts. The `dataseeder` app is left out; it touches SQL and Cosmos directly and only
 runs when you start it by hand.
+
+All browser traffic to the three APIs goes through the **gateway** origin (`:7500` in dev,
+`:18700` in tests): the real Azure API Management self-hosted gateway container when the
+`Apim:*` user secrets are configured (see [`infra/README.md`](infra/README.md)), otherwise the
+`BikeBuilder.Gateway` YARP stand-in with the same routes. The catalog api owns the root
+catch-all because gRPC-Web method paths cannot carry a prefix. Server-to-server calls
+(`orders` → `api`, `web-public` → `api`/`orders`) and the SignalR hub stay direct.
 
 ### Project references
 
@@ -104,6 +114,8 @@ flowchart LR
         client["BikeBuilder.Web.Public.Client"]
     end
 
+    gateway["BikeBuilder.Gateway<br/>YARP fallback"]
+
     subgraph shared["Shared"]
         contracts["BikeBuilder.Contracts"]
         defaults["BikeBuilder.ServiceDefaults"]
@@ -114,6 +126,7 @@ flowchart LR
     ratings --> shared
     notifications --> shared
     webpublic --> shared
+    gateway --> defaults
     web --> contracts
 
     webpublic --> client
@@ -125,6 +138,7 @@ flowchart LR
     apphost --> web
     apphost --> webpublic
     apphost --> seeder
+    apphost --> gateway
     tests --> apphost
     tests --> api
     tests --> seeder
@@ -162,6 +176,13 @@ but in-flight carts, which expire within the hour anyway, so it gets no data vol
 empty every time. Auth is a real Auth0 tenant in local dev; integration tests swap in a stub
 OIDC issuer so they run fully offline.
 
+Browser calls to the three APIs go through the **gateway** at http://localhost:7500. Out of
+the box that is the `BikeBuilder.Gateway` YARP stand-in; once Azure API Management is deployed
+and `infra/new-gateway-token.ps1` has written the `Apim:*` user secrets, the AppHost runs the
+real APIM **self-hosted gateway container** there instead — same origin, same routes, but the
+routing now comes from the cloud instance's API definitions. To go back to the stand-in:
+`dotnet user-secrets remove Apim:ConfigEndpoint --project Src/BikeBuilder.AppHost`.
+
 To fill the dev stack with realistic sample data (1000+ components, 100 bike builds, ratings),
 start the `dataseeder` resource from the Aspire dashboard (it's marked explicit-start, so it
 only runs when you tell it to). Running it a second time refuses to touch a non-empty database;
@@ -191,8 +212,11 @@ The orders GraphQL endpoint (with the Nitro IDE in dev) is at https://localhost:
 ## Deploying to Azure
 
 The `infra/` folder provisions the whole system into a single subscription, staying inside
-Azure's always-free grants wherever they exist — see [`infra/README.md`](infra/README.md) for
-the cost breakdown and the step-by-step.
+Azure's always-free grants wherever they exist — with one deliberate exception: API Management
+on the Developer tier (~$50/month), the cheapest tier that can feed the local self-hosted
+gateway container. See [`infra/README.md`](infra/README.md) for the cost breakdown and the
+step-by-step. Deployed browsers reach the three APIs through the APIM gateway URL, matching
+the gateway origin they use locally.
 
 The deployed topology differs from local dev in one structural way. Container Apps only stay
 free with scale-to-zero, which forbids an always-on process, so the storefront's in-process
@@ -227,3 +251,9 @@ Azure Functions Core Tools. The Aspire testing host (`Aspire.Hosting.Testing`) r
 AppHost in test mode: fixed 18xxx ports, a stub OIDC issuer instead of Auth0, and
 session-scoped containers that are torn down with the fixture. Debugging the test from Visual
 Studio's Test Explorer runs the browser headed; videos land in `TestResults/videos`.
+
+The browsers reach the APIs through the gateway origin (`:18700`), so the suite exercises
+whichever gateway the AppHost selected: with the `Apim:GatewayTokenTest` user secret present,
+the real APIM self-hosted gateway container (routing configured in Azure); without it — CI,
+or any machine with no APIM connection — the YARP stand-in with identical routes. The tests
+themselves are the same either way.

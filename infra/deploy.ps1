@@ -57,7 +57,7 @@ Write-Step 'Registering resource providers'
 $providers = @(
     'Microsoft.App', 'Microsoft.OperationalInsights', 'Microsoft.Sql', 'Microsoft.DocumentDB',
     'Microsoft.ServiceBus', 'Microsoft.SignalRService', 'Microsoft.Storage', 'Microsoft.Web',
-    'Microsoft.Insights', 'Microsoft.ManagedIdentity'
+    'Microsoft.Insights', 'Microsoft.ManagedIdentity', 'Microsoft.ApiManagement'
 )
 foreach ($provider in $providers) {
     az provider register --namespace $provider --wait 2>$null | Out-Null
@@ -82,6 +82,7 @@ $deploymentName = "bikebuilder-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 
 if ($PSCmdlet.ShouldProcess($SubscriptionId, 'Deploy BikeBuilder infrastructure')) {
     Write-Step 'Deploying infrastructure'
+    Write-Host 'Note: the first deployment provisions API Management (Developer tier), which takes 30-45 minutes to activate. The command below will appear to hang - it has not.' -ForegroundColor Yellow
     az deployment sub create `
         --name $deploymentName `
         --location $Location `
@@ -107,19 +108,21 @@ Write-Step 'Deployment outputs'
 $outputs = (az deployment sub show --name $deploymentName --query properties.outputs -o json | ConvertFrom-Json)
 
 [PSCustomObject]@{
-    ResourceGroup = $outputs.resourceGroupName.value
-    Storefront    = $outputs.webPublicUrl.value
-    WasmApp       = $outputs.staticWebAppUrl.value
-    CatalogApi    = $outputs.apiUrl.value
-    OrdersApi     = $outputs.ordersUrl.value
-    Functions     = $outputs.functionsUrl.value
-    SqlServer     = $outputs.sqlServerFqdn.value
-    AppIdentity   = $outputs.appIdentityName.value
+    ResourceGroup      = $outputs.resourceGroupName.value
+    Storefront         = $outputs.webPublicUrl.value
+    WasmApp            = $outputs.staticWebAppUrl.value
+    CatalogApi         = $outputs.apiUrl.value
+    OrdersApi          = $outputs.ordersUrl.value
+    Functions          = $outputs.functionsUrl.value
+    ApimGateway        = $outputs.apimGatewayUrl.value
+    ApimConfigEndpoint = $outputs.apimConfigEndpoint.value
+    SqlServer          = $outputs.sqlServerFqdn.value
+    AppIdentity        = $outputs.appIdentityName.value
 } | Format-List
 
 Write-Step 'Remaining manual steps'
 Write-Host @"
-Infrastructure is provisioned, but three things still need doing - see README.md:
+Infrastructure is provisioned, but a few things still need doing - see README.md:
 
   1. Grant the managed identity access to both SQL databases (Bicep cannot run T-SQL).
      Connect to $($outputs.sqlServerFqdn.value) as the Entra admin and, in EACH database, run:
@@ -136,6 +139,19 @@ Infrastructure is provisioned, but three things still need doing - see README.md
 
   3. Publish the Functions app and the Blazor WebAssembly front end.
 
-Cost note: everything here sits on a free grant except Service Bus, which has no free tier
-at any SKU (Basic bills per operation - cents per month at this app's volume).
+  4. Generate self-hosted gateway tokens so local dev and the integration tests can run
+     the real APIM gateway container (Bicep cannot mint these; expiry caps at 30 days):
+
+         ./new-gateway-token.ps1 -SubscriptionId $SubscriptionId
+
+     It writes Apim:ConfigEndpoint / Apim:GatewayTokenDev / Apim:GatewayTokenTest into the
+     AppHost's user secrets. Without them the AppHost falls back to the YARP stand-in.
+
+  5. Put the APIM gateway URL ($($outputs.apimGatewayUrl.value)) into
+     Src/BikeBuilder.Web/wwwroot/appsettings.json (ApiBaseAddress, and the /ratings and
+     /orders variants) before publishing the WASM front end.
+
+Cost note: Service Bus bills per operation (cents/month), and API Management Developer tier
+is the one deliberately paid resource here - roughly `$50/month. Everything else sits on a
+free grant.
 "@ -ForegroundColor Yellow

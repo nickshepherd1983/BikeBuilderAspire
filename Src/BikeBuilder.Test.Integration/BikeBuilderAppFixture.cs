@@ -29,6 +29,10 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
   public string WebPublicBaseAddress => "http://127.0.0.1:18300";
   public string RatingsBaseAddress => "http://127.0.0.1:18500";
   public string OrdersBaseAddress => "http://127.0.0.1:18600";
+  // The browsers reach api/orders/ratings through this origin (the APIM self-hosted gateway
+  // when Apim:* user secrets are configured, the YARP fallback otherwise); the direct
+  // addresses above remain for seeding and diagnostics.
+  public string GatewayBaseAddress => "http://127.0.0.1:18700";
 
   public IBrowser Browser { get; private set; } = null!;
 
@@ -44,7 +48,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     // half-updates the build (MSB3027 file locks) and leaves mixed-generation static
     // web assets - the WASM app then 404s its own fingerprinted _framework files and
     // every test times out on the first navigation. Fail fast with the actual reason.
-    var conflicting = new[] { "BikeBuilder.AppHost", "BikeBuilder.API", "BikeBuilder.API.Orders", "BikeBuilder.Web", "BikeBuilder.Web.Public" }
+    var conflicting = new[] { "BikeBuilder.AppHost", "BikeBuilder.API", "BikeBuilder.API.Orders", "BikeBuilder.Gateway", "BikeBuilder.Web", "BikeBuilder.Web.Public" }
         .SelectMany(Process.GetProcessesByName)
         .Select(process => $"{process.ProcessName} (pid {process.Id})")
         .ToList();
@@ -87,7 +91,10 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
           notifications.WaitForResourceHealthyAsync("orders", cts.Token),
           notifications.WaitForResourceHealthyAsync("ratings", cts.Token),
           notifications.WaitForResourceHealthyAsync("web", cts.Token),
-          notifications.WaitForResourceHealthyAsync("web-public", cts.Token));
+          notifications.WaitForResourceHealthyAsync("web-public", cts.Token),
+          // Same resource name in both gateway modes; a healthy APIM container means it
+          // authenticated to the cloud config endpoint and is serving the API config.
+          notifications.WaitForResourceHealthyAsync("gateway", cts.Token));
     }
     catch
     {

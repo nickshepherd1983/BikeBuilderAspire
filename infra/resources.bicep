@@ -14,6 +14,12 @@ param auth0Authority string
 param auth0Audience string
 param tags object
 
+@description('Publisher email required by the API Management service resource.')
+param publisherEmail string
+
+@description('Publisher display name required by the API Management service resource.')
+param publisherName string
+
 // Container images. Azure Container Registry has no free SKU (Basic is roughly $5/month),
 // so these default to GitHub Container Registry, which is free for public repositories and
 // needs no pull credentials when the package is public. The placeholder default lets the
@@ -37,6 +43,11 @@ var shortSuffix = substring(suffix, 0, 6)
 var functionAppName = 'func-${environmentName}-${shortSuffix}'
 #disable-next-line no-hardcoded-env-urls
 var functionAppUrl = 'https://${functionAppName}.azurewebsites.net'
+
+// Same up-front-derivation trick for the storefront's URL: the api and orders apps need it
+// for CORS (WebAppOrigins), but referencing webPublicApp.outputs.url from apiApp would be a
+// cycle - webPublicApp already depends on apiApp for its service-discovery address.
+var webPublicAppName = 'ca-${environmentName}-web-public'
 
 // ---------------------------------------------------------------------------------------
 // Identity - one user-assigned identity shared by every compute resource, so all the RBAC
@@ -391,6 +402,22 @@ resource containerEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
 
 var sqlConnectionBase = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Encrypt=True;TrustServerCertificate=False;Authentication=Active Directory Default;'
 
+var webPublicOrigin = 'https://${webPublicAppName}.${containerEnv.properties.defaultDomain}'
+var staticWebAppOrigin = 'https://${staticWebApp.properties.defaultHostname}'
+
+// The services validate browser origins themselves (the gateway is a transparent hop), and
+// the deployed browsers live on the Static Web App (signed-in web app) and the storefront.
+var webAppOriginsEnv = [
+  {
+    name: 'WebAppOrigins__0'
+    value: staticWebAppOrigin
+  }
+  {
+    name: 'WebAppOrigins__1'
+    value: webPublicOrigin
+  }
+]
+
 var commonEnv = [
   {
     name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
@@ -416,7 +443,7 @@ module apiApp 'modules/container-app.bicep' = {
     identityId: appIdentity.id
     identityClientId: appIdentity.properties.clientId
     image: apiImage
-    env: concat(commonEnv, [
+    env: concat(commonEnv, webAppOriginsEnv, [
       {
         name: 'ConnectionStrings__BikeBuilderDb'
         value: '${sqlConnectionBase}Database=BikeBuilderDb;'
@@ -451,7 +478,7 @@ module ordersApp 'modules/container-app.bicep' = {
     identityId: appIdentity.id
     identityClientId: appIdentity.properties.clientId
     image: ordersImage
-    env: concat(commonEnv, [
+    env: concat(commonEnv, webAppOriginsEnv, [
       {
         name: 'ConnectionStrings__BikeBuilderOrdersDb'
         value: '${sqlConnectionBase}Database=BikeBuilderOrdersDb;'
@@ -479,7 +506,7 @@ module ordersApp 'modules/container-app.bicep' = {
 module webPublicApp 'modules/container-app.bicep' = {
   name: 'app-web-public'
   params: {
-    name: 'ca-${environmentName}-web-public'
+    name: webPublicAppName
     location: location
     tags: tags
     environmentId: containerEnv.id
@@ -617,6 +644,16 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
           name: 'Auth0__Audience'
           value: auth0Audience
         }
+        // The worker's hand-rolled CorsMiddleware reads these; the site-level cors block
+        // above only covers the host-handled negotiate path.
+        {
+          name: 'WebAppOrigins__0'
+          value: staticWebAppOrigin
+        }
+        {
+          name: 'WebAppOrigins__1'
+          value: webPublicOrigin
+        }
       ]
     }
   }
@@ -643,6 +680,26 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
   }
 }
 
+// ---------------------------------------------------------------------------------------
+// API Management - the browser-facing edge for the three APIs, and the config source for
+// the local self-hosted gateway container the AppHost runs. NOT free: Developer tier is
+// ~$50/month, the one deliberately paid resource in this stack (see infra/README.md).
+// ---------------------------------------------------------------------------------------
+
+module apim 'modules/apim.bicep' = {
+  name: 'apim'
+  params: {
+    name: 'apim-${environmentName}-${shortSuffix}'
+    location: location
+    tags: tags
+    publisherEmail: publisherEmail
+    publisherName: publisherName
+    apiBackendUrl: apiApp.outputs.url
+    ordersBackendUrl: ordersApp.outputs.url
+    ratingsBackendUrl: functionAppUrl
+  }
+}
+
 output apiUrl string = apiApp.outputs.url
 output ordersUrl string = ordersApp.outputs.url
 output webPublicUrl string = webPublicApp.outputs.url
@@ -662,3 +719,6 @@ output containerAppNames array = [
   ordersApp.outputs.name
   webPublicApp.outputs.name
 ]
+output apimGatewayUrl string = apim.outputs.gatewayUrl
+output apimConfigEndpoint string = apim.outputs.configEndpoint
+output apimName string = apim.outputs.apimName

@@ -2,11 +2,13 @@ namespace BikeBuilder.Web.Services;
 
 public class RatingsClient(HttpClient http)
 {
+  // Relative paths (no leading slash): the base address carries the gateway's /ratings
+  // prefix, and a rooted path would replace it rather than append to it.
   public async Task<List<RatingDto>> ListAsync(int bikeBuildId, CancellationToken ct = default) =>
-      await http.GetFromJsonAsync<List<RatingDto>>($"/api/bikebuilds/{bikeBuildId}/ratings", ct) ?? [];
+      await http.GetFromJsonAsync<List<RatingDto>>($"api/bikebuilds/{bikeBuildId}/ratings", ct) ?? [];
 
   public Task<HttpResponseMessage> CreateAsync(int bikeBuildId, CreateRatingRequest request, CancellationToken ct = default) =>
-      http.PostAsJsonAsync($"/api/bikebuilds/{bikeBuildId}/ratings", request, ct);
+      http.PostAsJsonAsync($"api/bikebuilds/{bikeBuildId}/ratings", request, ct);
 
   public async Task<Dictionary<int, RatingSummaryDto>> GetSummariesAsync(IEnumerable<int> bikeBuildIds, CancellationToken ct = default)
   {
@@ -14,7 +16,7 @@ public class RatingsClient(HttpClient http)
     if (ids.Length == 0)
       return [];
 
-    var summaries = await http.GetFromJsonAsync<List<RatingSummaryDto>>($"/api/bikebuilds/ratings/summaries?ids={ids}", ct) ?? [];
+    var summaries = await http.GetFromJsonAsync<List<RatingSummaryDto>>($"api/bikebuilds/ratings/summaries?ids={ids}", ct) ?? [];
     return summaries.ToDictionary(summary => int.Parse(summary.BikeBuildId));
   }
 }

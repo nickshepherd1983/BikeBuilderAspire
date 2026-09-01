@@ -18,6 +18,12 @@ param sqlAdminLoginName = 'you@example.com'
 param auth0Authority = ''
 param auth0Audience = 'https://bikebuilder-api'
 
+// API Management requires a publisher contact. NOTE: APIM is the one deliberately paid
+// resource in this stack - the Developer tier (~$50/month) is the cheapest that supports
+// the self-hosted gateways local dev and the integration tests connect to.
+param publisherEmail = 'you@example.com'
+param publisherName = 'BikeBuilder'
+
 // Container images. Point these at your public GitHub Container Registry packages once the
 // build workflow has pushed them; the placeholder default lets the first deploy succeed.
 // param apiImage = 'ghcr.io/nickshepherd1983/bikebuilder-api:latest'

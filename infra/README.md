@@ -1,7 +1,9 @@
 # Deploying BikeBuilder to Azure on free tiers
 
 Provisions the whole system into one subscription, staying inside Azure's always-free
-grants wherever they exist.
+grants wherever they exist — with one deliberate exception: **API Management on the
+Developer tier (~$50/month)**, the cheapest tier that can feed the self-hosted gateway
+container local development and the integration tests run.
 
 ## What gets provisioned
 
@@ -11,6 +13,7 @@ flowchart TB
 
     subgraph rg["Resource group rg-bikebuilder"]
         swa["Static Web App · Free<br/>BikeBuilder.Web"]
+        apim["API Management · Developer<br/>catalog (root) / orders / ratings<br/>+ self-hosted gateways local-dev, local-test"]
 
         subgraph cae["Container Apps env · Consumption, all scale-to-zero"]
             caapi["ca-bikebuilder-api"]
@@ -33,8 +36,10 @@ flowchart TB
 
     browser -->|loads the WASM app| swa
     browser -->|loads the storefront| cawp
-    browser -.->|gRPC-Web| caapi
-    browser -.->|GraphQL| caorders
+    browser -.->|gRPC-Web · GraphQL · ratings| apim
+    apim -.->|/ catch-all| caapi
+    apim -.->|/orders| caorders
+    apim -.->|/ratings| func
     browser -->|negotiate| func
     browser -->|hub connection| sigr
 
@@ -62,6 +67,15 @@ flowchart TB
 
     style redis stroke-dasharray: 5 5
 ```
+
+Browsers reach the three APIs through **API Management**: the catalog api owns the empty
+root path (gRPC-Web method paths like `/bikebuilder.ComponentService/…` cannot carry a
+prefix), while orders and ratings sit under `/orders` and `/ratings` — APIM matches the
+most specific API path first. The instance also registers two **self-hosted gateways**
+(`local-dev`, `local-test`); the Aspire AppHost runs the gateway container against them so
+local traffic flows through the same API definitions, with a per-API policy rewriting the
+backend to `host.docker.internal` based on which gateway is asking. Server-to-server calls
+(orders→api, storefront→api/orders) and the SignalR path stay direct.
 
 Two things to read off this. The notification fan-out is a **Function**, not part of the
 storefront — see [why scale-to-zero is load-bearing](#why-scale-to-zero-is-load-bearing) below;
@@ -104,9 +118,12 @@ subscription of its own; you either transfer one in or sign up again from it.
 | Log Analytics | 5 GB/month ingest | Capped at 0.5 GB/day here to stay inside it |
 | Blob storage | 5 GB for 12 months | Then pennies |
 | **Service Bus** | **none** | No free tier at any SKU. Basic bills $0.05/million operations |
+| **API Management** | **none usable here** | **Developer tier, ~$50/month, no SLA.** Consumption is near-free but cannot host self-hosted gateways, which local dev and the tests depend on |
 
-Realistically **$0–1/month** at portfolio traffic. It is not literally zero, because Service
-Bus has no free tier.
+Realistically **~$50/month**, and API Management is almost all of it — the one deliberately
+paid resource. Everything else lands at $0–1/month at portfolio traffic. If the local
+self-hosted gateway stops mattering, dropping APIM (or moving it to Consumption and losing
+the local gateway) returns the stack to effectively free.
 
 ### Why scale-to-zero is load-bearing
 
@@ -131,7 +148,8 @@ sleep, and messages still arrive.
 ## Deploying
 
 ```powershell
-# 1. Fill in the Entra admin details (and optionally Auth0) in main.bicepparam
+# 1. Fill in the Entra admin details, the APIM publisher contact (and optionally Auth0)
+#    in main.bicepparam
 az ad signed-in-user show --query id -o tsv                    # -> sqlAdminObjectId
 az ad signed-in-user show --query userPrincipalName -o tsv     # -> sqlAdminLoginName
 
@@ -141,7 +159,8 @@ az ad signed-in-user show --query userPrincipalName -o tsv     # -> sqlAdminLogi
 ```
 
 The first deploy runs the container apps on Microsoft's placeholder image so it succeeds
-before any application image exists.
+before any application image exists. It also provisions API Management, which takes
+**30–45 minutes** to activate on first creation — the deployment is working, not hung.
 
 ### Then: images
 
@@ -165,6 +184,34 @@ ALTER ROLE db_ddladmin  ADD MEMBER [id-bikebuilder];
 
 `db_ddladmin` is required because both services run EF Core migrations at startup.
 
+### Then: self-hosted gateway tokens
+
+The Aspire AppHost runs the APIM **self-hosted gateway container** locally when it finds
+the connection details in user secrets; otherwise it falls back to a YARP stand-in with the
+same routes (`Src/BikeBuilder.Gateway`). Tokens cannot be minted by Bicep — they are a POST
+action with an expiry capped at **30 days** — so generate them after deploying:
+
+```powershell
+./new-gateway-token.ps1 -SubscriptionId <your-subscription-id>
+```
+
+That writes three user secrets to the AppHost project: `Apim:ConfigEndpoint`,
+`Apim:GatewayTokenDev` (used by F5/`dotnet run`, backends on the 7xxx dev ports) and
+`Apim:GatewayTokenTest` (used by the integration tests, backends on the 18xxx test ports).
+Re-run it roughly monthly; an expired token shows up as the gateway container failing its
+health check with a config-auth error in its logs. The dev container is persistent, so
+restart/recreate it after rotating. To force the YARP fallback:
+`dotnet user-secrets remove Apim:ConfigEndpoint --project Src/BikeBuilder.AppHost`.
+
+### Then: browser config
+
+The deployed WASM front end reads its API base addresses from baked-in JSON. Before
+publishing it, put the real APIM gateway URL (printed by `deploy.ps1`) into
+`Src/BikeBuilder.Web/wwwroot/appsettings.json`: `ApiBaseAddress` (gateway root),
+`RatingsApiBaseAddress` (`…/ratings`) and `OrdersApiBaseAddress` (`…/orders`). The
+storefront's client config (`Src/BikeBuilder.Web.Public.Client/wwwroot/appsettings.json`)
+needs the same treatment when its image is published.
+
 ## Files
 
 | File | Purpose |
@@ -172,8 +219,10 @@ ALTER ROLE db_ddladmin  ADD MEMBER [id-bikebuilder];
 | `main.bicep` | Subscription scope: creates the resource group, calls `resources.bicep` |
 | `resources.bicep` | Every resource, with the free-tier flags set |
 | `modules/container-app.bicep` | One scale-to-zero container app |
+| `modules/apim.bicep` | API Management: the three APIs, wildcard operations, backend-switch policies, and the two self-hosted gateway registrations |
 | `main.bicepparam` | The values you edit |
 | `deploy.ps1` | Preflight, provider registration, deploy, post-deploy instructions |
+| `new-gateway-token.ps1` | Mints/rotates the self-hosted gateway tokens into the AppHost's user secrets |
 
 Validate changes locally without an Azure subscription:
 

@@ -61,7 +61,9 @@ public class OrdersClient(HttpClient http)
 
   async Task<TData?> ExecuteAsync<TData>(string query, CancellationToken cancellationToken) where TData : class
   {
-    var response = await http.PostAsJsonAsync("/graphql", new { query }, _jsonOptions, cancellationToken);
+    // Relative path: the base address carries the gateway's /orders prefix, and a rooted
+    // "/graphql" would replace it rather than append to it.
+    var response = await http.PostAsJsonAsync("graphql", new { query }, _jsonOptions, cancellationToken);
     response.EnsureSuccessStatusCode();
 
     var payload = await response.Content.ReadFromJsonAsync<GraphQLResponse<TData>>(_jsonOptions, cancellationToken)

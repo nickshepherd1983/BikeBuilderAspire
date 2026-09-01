@@ -35,6 +35,7 @@
     <ProjectReference Include="..\BikeBuilder.API.Orders\BikeBuilder.API.Orders.csproj" />
     <ProjectReference Include="..\BikeBuilder.API.Ratings\BikeBuilder.API.Ratings.csproj" />
     <ProjectReference Include="..\BikeBuilder.DataSeeder\BikeBuilder.DataSeeder.csproj" />
+    <ProjectReference Include="..\BikeBuilder.Gateway\BikeBuilder.Gateway.csproj" />
     <ProjectReference Include="..\BikeBuilder.Web\BikeBuilder.Web.csproj" />
     <ProjectReference Include="..\BikeBuilder.Web.Public\BikeBuilder.Web.Public.csproj" />
   </ItemGroup>

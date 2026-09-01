@@ -30,7 +30,7 @@ builder.Services.AddOidcAuthentication(options =>
   }
 });
 
-var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "https://localhost:7100";
+var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "http://localhost:7500";
 
 // Scoped rather than singleton so the factory can resolve the scoped IAccessTokenProvider;
 // in WASM there is only the root scope, so this is still effectively one channel.
@@ -74,24 +74,30 @@ builder.Services.AddScoped(sp =>
   return new ComponentImageClient(new HttpClient(handler) { BaseAddress = new Uri(apiBaseAddress) });
 });
 
-var ratingsApiBaseAddress = builder.Configuration["RatingsApiBaseAddress"] ?? "http://localhost:7071";
+// These two base addresses carry the gateway's /ratings and /orders path prefixes, so the
+// clients use relative request paths against them. A trailing slash is required for that:
+// without it, Uri composition drops the last path segment (the prefix). authorizedUrls
+// prefix-matches, so the un-slashed configured value still covers every sub-path.
+var ratingsApiBaseAddress = builder.Configuration["RatingsApiBaseAddress"] ?? "http://localhost:7500/ratings";
 
 builder.Services.AddScoped(sp =>
 {
   var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
       .ConfigureHandler(authorizedUrls: [ratingsApiBaseAddress]);
   handler.InnerHandler = new HttpClientHandler();
-  return new RatingsClient(new HttpClient(handler) { BaseAddress = new Uri(ratingsApiBaseAddress) });
+  return new RatingsClient(new HttpClient(handler) { BaseAddress = new Uri(WithTrailingSlash(ratingsApiBaseAddress)) });
 });
 
-var ordersApiBaseAddress = builder.Configuration["OrdersApiBaseAddress"] ?? "https://localhost:7400";
+var ordersApiBaseAddress = builder.Configuration["OrdersApiBaseAddress"] ?? "http://localhost:7500/orders";
 
 builder.Services.AddScoped(sp =>
 {
   var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
       .ConfigureHandler(authorizedUrls: [ordersApiBaseAddress]);
   handler.InnerHandler = new HttpClientHandler();
-  return new OrdersClient(new HttpClient(handler) { BaseAddress = new Uri(ordersApiBaseAddress) });
+  return new OrdersClient(new HttpClient(handler) { BaseAddress = new Uri(WithTrailingSlash(ordersApiBaseAddress)) });
 });
 
 await builder.Build().RunAsync();
+
+static string WithTrailingSlash(string address) => address.EndsWith('/') ? address : address + "/";
