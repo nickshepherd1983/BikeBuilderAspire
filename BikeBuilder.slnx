@@ -16,6 +16,6 @@
     <Project Path="Src/BikeBuilder.Test.Integration/BikeBuilder.Test.Integration.csproj" />
     <Project Path="Src/BikeBuilder.Web.Public/BikeBuilder.Web.Public.csproj" />
     <Project Path="Src/BikeBuilder.Web.Public.Client/BikeBuilder.Web.Public.Client.csproj" />
-    <Project Path="Src/BikeBuilder.Web/BikeBuilder.Web.csproj" />
+    <Project Path="Src/BikeBuilder.Web.Admin/BikeBuilder.Web.Admin.csproj" />
   </Folder>
 </Solution>

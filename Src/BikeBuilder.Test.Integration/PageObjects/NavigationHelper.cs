@@ -43,7 +43,10 @@ static class NavigationHelper
       // the stub's Duende quickstart login form once; afterwards the stub's session cookie
       // SSOs straight through and the app lands on the requested page directly. Public pages
       // (Home, Web.Public) never redirect at all. Wait for whichever outcome materializes.
-      var heading = page.GetByRole(AriaRole.Heading, new() { Name = expectedHeading });
+      // Exact: the app bar's own title ("Bike Builder Admin") is an h6, and GetByRole's
+      // default substring match would let it satisfy a wait for the "Admin" page heading
+      // during the brief pre-login render - skipping the login entirely.
+      var heading = page.GetByRole(AriaRole.Heading, new() { Name = expectedHeading, Exact = true });
       var usernameField = page.Locator("input[name='Input.Username']");
       await WaitWithDiagnosticsAsync(page, heading.Or(usernameField).First, "heading-or-login-form", url, consoleMessages);
 

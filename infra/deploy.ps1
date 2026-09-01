@@ -148,7 +148,7 @@ Infrastructure is provisioned, but a few things still need doing - see README.md
      AppHost's user secrets. Without them the AppHost falls back to the YARP stand-in.
 
   5. Put the APIM gateway URL ($($outputs.apimGatewayUrl.value)) into
-     Src/BikeBuilder.Web/wwwroot/appsettings.json (ApiBaseAddress, and the /ratings and
+     Src/BikeBuilder.Web.Admin/wwwroot/appsettings.json (ApiBaseAddress, and the /ratings and
      /orders variants) before publishing the WASM front end.
 
 Cost note: Service Bus bills per operation (cents/month), and API Management Developer tier

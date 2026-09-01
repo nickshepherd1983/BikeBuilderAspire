@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Same proto-sharing pattern as BikeBuilder.Web: compile the API's protos as clients
+    <!-- Same proto-sharing pattern as BikeBuilder.Web.Admin: compile the API's protos as clients
          for the catalog price-snapshot lookups. -->
     <Protobuf Include="..\BikeBuilder.API\Protos\component.proto" GrpcServices="Client" Link="Protos\component.proto" />
     <Protobuf Include="..\BikeBuilder.API\Protos\bikebuild.proto" GrpcServices="Client" Link="Protos\bikebuild.proto" />

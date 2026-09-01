@@ -136,7 +136,7 @@ if (isTest)
 // Dev keeps each app's launch profile (fixed ports 7100/7200/7300 + http siblings) so the
 // WASM app's wwwroot/appsettings.Development.json base addresses stay valid - the browser
 // can't read Aspire-injected environment variables at runtime.
-var web = builder.AddProject<Projects.BikeBuilder_Web>("web",
+var webAdmin = builder.AddProject<Projects.BikeBuilder_Web_Admin>("web-admin",
     options => options.ExcludeLaunchProfile = isTest);
 if (isTest)
 {
@@ -144,9 +144,9 @@ if (isTest)
   // with environment "IntegrationTest" when served from this origin, which makes it load
   // wwwroot/appsettings.IntegrationTest.json (18xxx addresses + stub OIDC). The dev server
   // can't forward a hosting environment to the browser in .NET 10.
-  web.WithHttpEndpoint(port: 18200);
+  webAdmin.WithHttpEndpoint(port: 18200);
 }
-web.WithHttpHealthCheck("/");
+webAdmin.WithHttpHealthCheck("/");
 
 var api = builder.AddProject<Projects.BikeBuilder_API>("api",
         options => options.ExcludeLaunchProfile = isTest)
@@ -316,8 +316,8 @@ void WithWebAppOrigins<T>(IResourceBuilder<T> resource) where T : IResourceWithE
       return;
     }
 
-    context.EnvironmentVariables["WebAppOrigins__0"] = web.GetEndpoint("https");
-    context.EnvironmentVariables["WebAppOrigins__1"] = web.GetEndpoint("http");
+    context.EnvironmentVariables["WebAppOrigins__0"] = webAdmin.GetEndpoint("https");
+    context.EnvironmentVariables["WebAppOrigins__1"] = webAdmin.GetEndpoint("http");
   });
 }
 

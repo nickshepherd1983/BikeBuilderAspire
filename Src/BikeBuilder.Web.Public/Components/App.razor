@@ -25,7 +25,7 @@
         // .NET 10 doesn't forward the hosting environment to the browser, so the WASM half
         // of InteractiveAuto picks its wwwroot/appsettings.{env}.json by the one signal the
         // browser has: the fixed test origin the Aspire AppHost pins (same trick as
-        // BikeBuilder.Web's index.html).
+        // BikeBuilder.Web.Admin's index.html).
         Blazor.start(location.host === "127.0.0.1:18300"
             ? { webAssembly: { environment: "IntegrationTest" } }
             : {});

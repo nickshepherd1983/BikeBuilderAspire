@@ -6,7 +6,7 @@ using MudBlazor.Services;
 // The WebAssembly half of the storefront's InteractiveAuto setup: this DI container only
 // exists once a visitor's browser has the runtime cached and pages render client-side.
 // Base addresses come from wwwroot/appsettings*.json - the browser can't read the Aspire
-// service-discovery config the server half uses (same constraint as BikeBuilder.Web).
+// service-discovery config the server half uses (same constraint as BikeBuilder.Web.Admin).
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 // No RootComponents registrations: in a Blazor Web App the server delivers the component tree.
 
@@ -14,7 +14,7 @@ builder.Services.AddMudServices();
 
 // Catalog reads go over the API's anonymous gRPC-Web endpoints, straight from the browser.
 // HttpClientHandler (not SocketsHttpHandler) is the browser-capable handler, and the csproj
-// disables WASM streaming responses - both per the BikeBuilder.Web precedent.
+// disables WASM streaming responses - both per the BikeBuilder.Web.Admin precedent.
 var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "http://localhost:7500";
 builder.Services.AddScoped(_ => GrpcChannel.ForAddress(apiBaseAddress, new GrpcChannelOptions
 {

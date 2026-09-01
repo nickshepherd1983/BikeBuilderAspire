@@ -48,7 +48,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     // half-updates the build (MSB3027 file locks) and leaves mixed-generation static
     // web assets - the WASM app then 404s its own fingerprinted _framework files and
     // every test times out on the first navigation. Fail fast with the actual reason.
-    var conflicting = new[] { "BikeBuilder.AppHost", "BikeBuilder.API", "BikeBuilder.API.Orders", "BikeBuilder.Gateway", "BikeBuilder.Web", "BikeBuilder.Web.Public" }
+    var conflicting = new[] { "BikeBuilder.AppHost", "BikeBuilder.API", "BikeBuilder.API.Orders", "BikeBuilder.Gateway", "BikeBuilder.Web.Admin", "BikeBuilder.Web.Public" }
         .SelectMany(Process.GetProcessesByName)
         .Select(process => $"{process.ProcessName} (pid {process.Id})")
         .ToList();
@@ -90,7 +90,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
           notifications.WaitForResourceHealthyAsync("api", cts.Token),
           notifications.WaitForResourceHealthyAsync("orders", cts.Token),
           notifications.WaitForResourceHealthyAsync("ratings", cts.Token),
-          notifications.WaitForResourceHealthyAsync("web", cts.Token),
+          notifications.WaitForResourceHealthyAsync("web-admin", cts.Token),
           notifications.WaitForResourceHealthyAsync("web-public", cts.Token),
           // Same resource name in both gateway modes; a healthy APIM container means it
           // authenticated to the cloud config endpoint and is serving the API config.

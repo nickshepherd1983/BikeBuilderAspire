@@ -15,7 +15,7 @@ guest-checkout storefront, and watch activity land in real time on a public site
 | --- | --- |
 | `BikeBuilder.AppHost` | .NET Aspire app host — the one thing you run: orchestrates SQL Server, Redis, Azurite, the Service Bus and Cosmos emulators, and all five apps |
 | `BikeBuilder.ServiceDefaults` | Shared Aspire service defaults: OpenTelemetry (traces, metrics, logs), health checks, service discovery |
-| `BikeBuilder.Web` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service; signed-in users get live order toasts, a back-office Orders view, and an In Process view of carts still being filled in |
+| `BikeBuilder.Web.Admin` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service; signed-in users get live order toasts, a back-office Orders view, and an In Process view of carts still being filled in |
 | `BikeBuilder.API` | ASP.NET Core gRPC API (EF Core + SQL Server), component image upload to Azure Blob Storage, publishes events to Service Bus; catalog reads are anonymous so the storefront can browse |
 | `BikeBuilder.API.Orders` | HotChocolate GraphQL orders microservice, a discrete bounded context: unsubmitted carts live in Redis under a TTL, placed orders in its own SQL Server database. Snapshots catalog prices via gRPC-Web and publishes OrderPlaced events to Service Bus |
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
@@ -34,7 +34,7 @@ guest-checkout storefront, and watch activity land in real time on a public site
 ```mermaid
 flowchart TB
     subgraph browser["Browser"]
-        web["BikeBuilder.Web<br/>Blazor WASM · :7200"]
+        web["BikeBuilder.Web.Admin<br/>Blazor WASM · :7200"]
         client["Web.Public.Client<br/>storefront components"]
     end
 
@@ -109,7 +109,7 @@ flowchart LR
     end
 
     subgraph frontends["Front ends"]
-        web["BikeBuilder.Web"]
+        web["BikeBuilder.Web.Admin"]
         webpublic["BikeBuilder.Web.Public"]
         client["BikeBuilder.Web.Public.Client"]
     end
@@ -152,7 +152,7 @@ A solid arrow means "references"; an arrow into the Shared box means the project
 both shared projects. Dashed arrows are **not** project references — those three compile
 `BikeBuilder.API`'s `.proto` files as gRPC *clients* through linked `<Protobuf>` items.
 
-Two absences are deliberate. `BikeBuilder.Web` references `Contracts` but not `ServiceDefaults`
+Two absences are deliberate. `BikeBuilder.Web.Admin` references `Contracts` but not `ServiceDefaults`
 — a WebAssembly app has no server host to configure. And the AppHost does not reference
 `BikeBuilder.API.Notifications` at all, which is why it never starts locally.
 

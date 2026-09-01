@@ -12,7 +12,7 @@ flowchart TB
     browser["Browser"]
 
     subgraph rg["Resource group rg-bikebuilder"]
-        swa["Static Web App · Free<br/>BikeBuilder.Web"]
+        swa["Static Web App · Free<br/>BikeBuilder.Web.Admin"]
         apim["API Management · Developer<br/>catalog (root) / orders / ratings<br/>+ self-hosted gateways local-dev, local-test"]
 
         subgraph cae["Container Apps env · Consumption, all scale-to-zero"]
@@ -207,7 +207,7 @@ restart/recreate it after rotating. To force the YARP fallback:
 
 The deployed WASM front end reads its API base addresses from baked-in JSON. Before
 publishing it, put the real APIM gateway URL (printed by `deploy.ps1`) into
-`Src/BikeBuilder.Web/wwwroot/appsettings.json`: `ApiBaseAddress` (gateway root),
+`Src/BikeBuilder.Web.Admin/wwwroot/appsettings.json`: `ApiBaseAddress` (gateway root),
 `RatingsApiBaseAddress` (`…/ratings`) and `OrdersApiBaseAddress` (`…/orders`). The
 storefront's client config (`Src/BikeBuilder.Web.Public.Client/wwwroot/appsettings.json`)
 needs the same treatment when its image is published.
