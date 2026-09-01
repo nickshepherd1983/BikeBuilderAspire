@@ -14,29 +14,29 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Azure.Messaging.ServiceBus" Version="13.5.3" />
-    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.5.3" />
+    <PackageReference Include="Aspire.Azure.Messaging.ServiceBus" />
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
     <!-- Draft carts live in Redis with a TTL; only placed orders reach SQL. -->
-    <PackageReference Include="Aspire.StackExchange.Redis" Version="13.5.3" />
-    <PackageReference Include="Google.Protobuf" Version="3.36.0" />
-    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
-    <PackageReference Include="Grpc.Net.Client.Web" Version="2.83.0" />
-    <PackageReference Include="Grpc.Tools" Version="2.83.0">
+    <PackageReference Include="Aspire.StackExchange.Redis" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+    <PackageReference Include="Grpc.Net.Client.Web" />
+    <PackageReference Include="Grpc.Tools">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="HotChocolate.AspNetCore" Version="16.6.2" />
-    <PackageReference Include="HotChocolate.AspNetCore.Authorization" Version="16.6.2" />
-    <PackageReference Include="HotChocolate.Data.EntityFramework" Version="16.6.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+    <PackageReference Include="HotChocolate.AspNetCore" />
+    <PackageReference Include="HotChocolate.AspNetCore.Authorization" />
+    <PackageReference Include="HotChocolate.Data.EntityFramework" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <!-- Stable-semconv SqlClient tracing records db.query.text, matching BikeBuilder.API. -->
-    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.18.0" />
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.33.0.1635">
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" />
+    <PackageReference Include="SonarAnalyzer.CSharp">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

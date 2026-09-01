@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/SolutionItems/">
     <File Path=".editorconfig" />
+    <File Path="Directory.Packages.props" />
   </Folder>
   <Folder Name="/Src/">
     <Project Path="Src/BikeBuilder.API/BikeBuilder.API.csproj" />
