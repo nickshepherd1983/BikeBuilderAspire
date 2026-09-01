@@ -34,6 +34,8 @@ builder.Services.AddOrdersClient()
     .ConfigureHttpClient(client => client.BaseAddress = new Uri(new Uri(WithTrailingSlash(ordersApiBaseAddress)), "graphql"));
 
 builder.Services.AddScoped<OrderState>();
+builder.Services.AddScoped<IOrderIdStorage, BrowserOrderIdStorage>();
+builder.Services.AddScoped<IProductImageUrlProvider, RelativeProductImageUrlProvider>();
 builder.Services.AddScoped<INotificationsHubUrlProvider, BrowserNotificationsHubUrlProvider>();
 
 await builder.Build().RunAsync();

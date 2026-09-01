@@ -21,7 +21,9 @@ guest-checkout storefront, and watch activity land in real time on a public site
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
 | `BikeBuilder.API.Notifications` | **Deploy-only — not part of the local AppHost topology.** Azure Functions fan-out that replaces the storefront's in-process SignalR hub when deployed, where scale-to-zero forbids an always-on consumer: a Service Bus trigger pushing to Azure SignalR Service in Serverless mode |
 | `BikeBuilder.Web.Public` | Blazor Web App public site rendering InteractiveAuto — the first visit runs on a server circuit while the WebAssembly runtime downloads, later visits run in the browser: the guest-checkout storefront (StrawberryShake GraphQL client) as its landing page, with live activity toasts (Service Bus → SignalR) owned by the layout so they follow you across every page |
-| `BikeBuilder.Web.Public.Client` | The storefront's WebAssembly half: the interactive components and their catalog gRPC-Web / orders GraphQL clients, which call those services through the API gateway once running client-side |
+| `BikeBuilder.Web.Public.Client` | The storefront's WebAssembly half: a thin composition root that wires the shared storefront components to browser services (localStorage, origin-relative URLs) once pages run client-side |
+| `BikeBuilder.Web.Public.Shared` | Razor class library holding the entire storefront — pages, layout, catalog gRPC-Web and orders GraphQL clients — shared verbatim between the web storefront and the mobile app |
+| `BikeBuilder.MobileApp` | .NET MAUI Blazor Hybrid app (Android, plus a Windows head for the dev loop) rendering the same shared storefront in a native shell: platform preferences instead of localStorage, configured URLs instead of page origins |
 | `BikeBuilder.Gateway` | YARP stand-in for the API gateway: serves the gateway port with the same routes as the Azure API Management APIs whenever no APIM connection is configured (CI, or a dev machine without the `Apim:*` user secrets) |
 | `BikeBuilder.Contracts` | Shared event/message contracts |
 | `BikeBuilder.DataSeeder` | Console tool that fills the local dev stack with 1000+ real-sounding components, 100 bike builds, and 1–30 ratings each |
@@ -37,6 +39,8 @@ flowchart TB
         web["BikeBuilder.Web.Admin<br/>Blazor WASM · :7200"]
         client["Web.Public.Client<br/>storefront components"]
     end
+
+    mobile["BikeBuilder.MobileApp<br/>MAUI Blazor Hybrid<br/>Android · Windows"]
 
     subgraph apps["Apps — orchestrated by the AppHost"]
         gateway["gateway · :7500<br/>APIM self-hosted container<br/>or YARP fallback"]
@@ -58,6 +62,8 @@ flowchart TB
     web -->|SignalR| webpublic
     client -->|gRPC-Web · GraphQL| gateway
     client -->|SignalR| webpublic
+    mobile -->|gRPC-Web · GraphQL| gateway
+    mobile -->|SignalR| webpublic
 
     gateway -->|/ catch-all| api
     gateway -->|/orders| orders
@@ -79,7 +85,10 @@ flowchart TB
 
 `Web.Public.Client` sits in the Browser box because that is where it ends up: the storefront
 renders InteractiveAuto, so its components run on a server circuit inside `web-public` on the
-first visit and in the browser once the WebAssembly runtime is cached. Note that `orders`
+first visit and in the browser once the WebAssembly runtime is cached. `BikeBuilder.MobileApp`
+renders those same components (from `BikeBuilder.Web.Public.Shared`) inside a native WebView,
+talking to the same gateway and hub — from the Android emulator the host is `10.0.2.2` instead
+of `localhost`. Note that `orders`
 snapshots prices from `api` rather than reaching into the catalog database — they are separate
 bounded contexts. The `dataseeder` app is left out; it touches SQL and Cosmos directly and only
 runs when you start it by hand.
@@ -112,6 +121,8 @@ flowchart LR
         web["BikeBuilder.Web.Admin"]
         webpublic["BikeBuilder.Web.Public"]
         client["BikeBuilder.Web.Public.Client"]
+        storefront["BikeBuilder.Web.Public.Shared<br/>the storefront UI"]
+        mobile["BikeBuilder.MobileApp<br/>not in the AppHost"]
     end
 
     gateway["BikeBuilder.Gateway<br/>YARP fallback"]
@@ -130,6 +141,8 @@ flowchart LR
     web --> contracts
 
     webpublic --> client
+    client --> storefront
+    mobile --> storefront
     seeder --> api
 
     apphost --> api
@@ -145,16 +158,18 @@ flowchart LR
 
     orders -.-> api
     web -.-> api
-    client -.-> api
+    storefront -.-> api
 ```
 
 A solid arrow means "references"; an arrow into the Shared box means the project references
 both shared projects. Dashed arrows are **not** project references — those three compile
 `BikeBuilder.API`'s `.proto` files as gRPC *clients* through linked `<Protobuf>` items.
 
-Two absences are deliberate. `BikeBuilder.Web.Admin` references `Contracts` but not `ServiceDefaults`
-— a WebAssembly app has no server host to configure. And the AppHost does not reference
-`BikeBuilder.API.Notifications` at all, which is why it never starts locally.
+Three absences are deliberate. `BikeBuilder.Web.Admin` references `Contracts` but not `ServiceDefaults`
+— a WebAssembly app has no server host to configure. The AppHost does not reference
+`BikeBuilder.API.Notifications` at all, which is why it never starts locally. And it does not
+reference `BikeBuilder.MobileApp` either — Aspire orchestrates processes, and an Android app
+isn't one; the mobile app is launched separately and simply points at the AppHost's endpoints.
 
 ## Running it
 
@@ -182,6 +197,22 @@ and `infra/new-gateway-token.ps1` has written the `Apim:*` user secrets, the App
 real APIM **self-hosted gateway container** there instead — same origin, same routes, but the
 routing now comes from the cloud instance's API definitions. To go back to the stand-in:
 `dotnet user-secrets remove Apim:ConfigEndpoint --project Src/BikeBuilder.AppHost`.
+
+### The mobile app
+
+`BikeBuilder.MobileApp` is not orchestrated by the AppHost — start the AppHost first, then run
+the app against it. The fast loop is the Windows head, which talks straight to `localhost`:
+
+```powershell
+dotnet build Src/BikeBuilder.MobileApp -t:Run -f net10.0-windows10.0.19041.0
+```
+
+For Android, deploy to an emulator from Visual Studio (or `dotnet build -t:Run -f net10.0-android`
+with an emulator running); the app reaches the host machine via `10.0.2.2`, which its dev
+configuration (`Services/AppEnvironment.cs`) already points at. A physical device needs the
+host's LAN IP there instead. Publishing for the Play Store
+(`dotnet publish -f net10.0-android -c Release` produces an `.aab`, plus signing config and
+HTTPS endpoints) is future work.
 
 To fill the dev stack with realistic sample data (1000+ components, 100 bike builds, ratings),
 start the `dataseeder` resource from the Aspire dashboard (it's marked explicit-start, so it

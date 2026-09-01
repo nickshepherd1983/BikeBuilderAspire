@@ -68,6 +68,9 @@ builder.Services.AddHttpClient("catalog-images", client => client.BaseAddress = 
 builder.Services.AddOrdersClient()
     .ConfigureHttpClient(client => client.BaseAddress = ordersGraphQLAddress);
 builder.Services.AddScoped<OrderState>();
+// The server circuit reaches browser localStorage over JS interop, same as the WASM runtime.
+builder.Services.AddScoped<IOrderIdStorage, BrowserOrderIdStorage>();
+builder.Services.AddScoped<IProductImageUrlProvider, RelativeProductImageUrlProvider>();
 // The browser resolves the notification hub from its own origin; on the circuit the page
 // runs in this process, which needs Kestrel's actual bound address instead.
 builder.Services.AddScoped<INotificationsHubUrlProvider, ServerNotificationsHubUrlProvider>();

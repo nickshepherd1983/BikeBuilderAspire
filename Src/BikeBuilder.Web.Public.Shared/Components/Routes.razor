@@ -1,0 +1,8 @@
+﻿@* Self-referencing AppAssembly: the routable pages live in this shared assembly, which has
+   no Program - and the hosts that do (web WASM, MAUI) contain no pages of their own. *@
+<Router AppAssembly="typeof(Routes).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

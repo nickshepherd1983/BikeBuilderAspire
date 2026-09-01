@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>BikeBuilder</title>
+    <base href="/" />
+    <!-- Same stylesheet set as BikeBuilder.Web.Public's host document. Lato needs the
+         network; offline it falls back to the theme's Helvetica/Arial stack (the app is
+         useless offline anyway - the whole catalog is remote). -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900&display=swap" />
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    <link rel="stylesheet" href="_content/BikeBuilder.Web.Public.Shared/app.css" />
+    <link rel="stylesheet" href="BikeBuilder.MobileApp.styles.css" />
+</head>
+
+<body>
+    <div id="app">Loading…</div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+
+    <!-- No Blazor.start() here: the native BlazorWebView starts Blazor itself. -->
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+</body>
+
+</html>

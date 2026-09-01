@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The storefront components moved here (first from BikeBuilder.Web.Public, then from
+         its Client project) keep their original namespaces: the Razor compiler derives each
+         generated class's namespace from the root namespace, and the .razor.cs partials
+         still say BikeBuilder.Web.Public. -->
+    <RootNamespace>BikeBuilder.Web.Public</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Same proto-sharing pattern as BikeBuilder.Web.Admin: compile the API's protos as clients
+         for the storefront catalog. -->
+    <Protobuf Include="..\BikeBuilder.API\Protos\component.proto" GrpcServices="Client" Link="Protos\component.proto" />
+    <Protobuf Include="..\BikeBuilder.API\Protos\bikebuild.proto" GrpcServices="Client" Link="Protos\bikebuild.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="StrawberryShake.Blazor" />
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

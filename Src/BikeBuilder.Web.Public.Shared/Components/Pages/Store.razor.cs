@@ -7,6 +7,7 @@ public partial class Store(
     CatalogClient _catalog,
     IOrdersClient _ordersClient,
     OrderState _orderState,
+    IProductImageUrlProvider _imageUrls,
     IDialogService _dialogService,
     ISnackbar _snackbar)
 {

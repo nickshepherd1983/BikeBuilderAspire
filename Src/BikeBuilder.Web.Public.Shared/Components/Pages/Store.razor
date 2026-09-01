@@ -37,7 +37,7 @@
                         <MudCard Style="height: 100%; display: flex; flex-direction: column;">
                             @if (product.HasImage)
                             {
-                                <MudCardMedia Image="@($"/store/components/{product.Id}/image")" Height="140" />
+                                <MudCardMedia Image="@_imageUrls.GetImageUrl(product.Id)" Height="140" />
                             }
                             <MudCardContent Style="flex: 1;">
                                 <MudText Typo="Typo.h6">@product.Name</MudText>
