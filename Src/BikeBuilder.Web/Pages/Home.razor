@@ -10,51 +10,72 @@
         <MudText Typo="Typo.body1" Class="mt-4">Log in to manage your components and bike builds.</MudText>
     </NotAuthorized>
     <Authorized>
+@* Each card mirrors its page's policy so users only see what they can open. Nested
+   AuthorizeViews must rename their context to avoid clashing with the outer one. *@
 <MudGrid Class="mt-4">
-    <MudItem xs="12" sm="6">
-        <MudCard>
-            <MudCardContent>
-                <MudText Typo="Typo.h6">Components</MudText>
-                <MudText Typo="Typo.body2" Class="mt-2">Maintain the catalog of parts you can use across bike builds.</MudText>
-            </MudCardContent>
-            <MudCardActions>
-                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="components" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Components</MudButton>
-            </MudCardActions>
-        </MudCard>
-    </MudItem>
-    <MudItem xs="12" sm="6">
-        <MudCard>
-            <MudCardContent>
-                <MudText Typo="Typo.h6">Bike Builds</MudText>
-                <MudText Typo="Typo.body2" Class="mt-2">Create bike builds and assemble them from your components.</MudText>
-            </MudCardContent>
-            <MudCardActions>
-                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="bikebuilds" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Bike Builds</MudButton>
-            </MudCardActions>
-        </MudCard>
-    </MudItem>
-    <MudItem xs="12" sm="6">
-        <MudCard>
-            <MudCardContent>
-                <MudText Typo="Typo.h6">Orders</MudText>
-                <MudText Typo="Typo.body2" Class="mt-2">Everything customers have bought from the public store.</MudText>
-            </MudCardContent>
-            <MudCardActions>
-                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="orders" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Orders</MudButton>
-            </MudCardActions>
-        </MudCard>
-    </MudItem>
-    <MudItem xs="12" sm="6">
-        <MudCard>
-            <MudCardContent>
-                <MudText Typo="Typo.h6">In Process</MudText>
-                <MudText Typo="Typo.body2" Class="mt-2">Carts shoppers are still filling in, until they check out or expire.</MudText>
-            </MudCardContent>
-            <MudCardActions>
-                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="orders/in-process" EndIcon="@Icons.Material.Filled.ArrowForward">Go to In Process</MudButton>
-            </MudCardActions>
-        </MudCard>
-    </MudItem>
+    <AuthorizeView Policy="@Policies.ManageComponents" Context="cardContext">
+        <MudItem xs="12" sm="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">Components</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">Maintain the catalog of parts you can use across bike builds.</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="components" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Components</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Policies.ManageBikeBuilds" Context="cardContext">
+        <MudItem xs="12" sm="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">Bike Builds</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">Create bike builds and assemble them from your components.</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="bikebuilds" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Bike Builds</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Policies.ViewOrders" Context="cardContext">
+        <MudItem xs="12" sm="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">Orders</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">Everything customers have bought from the public store.</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="orders" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Orders</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">In Process</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">Carts shoppers are still filling in, until they check out or expire.</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="orders/in-process" EndIcon="@Icons.Material.Filled.ArrowForward">Go to In Process</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Policies.AdminOnly" Context="cardContext">
+        <MudItem xs="12" sm="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">Admin</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">Manage users and the roles that control access to this app.</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="admin" EndIcon="@Icons.Material.Filled.ArrowForward">Go to Admin</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </AuthorizeView>
 </MudGrid>
     </Authorized>
 </AuthorizeView>

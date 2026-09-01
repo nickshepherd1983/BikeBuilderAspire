@@ -55,6 +55,7 @@ public class ComponentGrpcService(BikeBuilderDbContext db, ComponentImageStorage
     return ToMessage(component);
   }
 
+  [Authorize(Policy = Policies.ManageComponents)]
   public override async Task<ComponentMessage> CreateComponent(CreateComponentRequest request, ServerCallContext context)
   {
     var component = new Data.Entities.Component
@@ -83,6 +84,7 @@ public class ComponentGrpcService(BikeBuilderDbContext db, ComponentImageStorage
     return ToMessage(component);
   }
 
+  [Authorize(Policy = Policies.ManageComponents)]
   public override async Task<ComponentMessage> UpdateComponent(UpdateComponentRequest request, ServerCallContext context)
   {
     var component = await db.Components.Include(c => c.Image).FirstOrDefaultAsync(c => c.Id == request.Id, context.CancellationToken)
@@ -100,6 +102,7 @@ public class ComponentGrpcService(BikeBuilderDbContext db, ComponentImageStorage
     return ToMessage(component);
   }
 
+  [Authorize(Policy = Policies.ManageComponents)]
   public override async Task<DeleteComponentResponse> DeleteComponent(DeleteComponentRequest request, ServerCallContext context)
   {
     var component = await db.Components.Include(c => c.Image).FirstOrDefaultAsync(c => c.Id == request.Id, context.CancellationToken)

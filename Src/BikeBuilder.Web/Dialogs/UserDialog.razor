@@ -1,0 +1,24 @@
+<MudDialog>
+    <TitleContent>New User</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_username" Label="Username" Required="true" RequiredError="Username is required" />
+            <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password"
+                          Required="true" RequiredError="Password is required" Class="mt-3" />
+            <MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Class="mt-3"
+                          HelperText="Required by Auth0; the test identity server ignores it." />
+            <MudTextField @bind-Value="_name" Label="Display name" Class="mt-3" />
+            <MudText Typo="Typo.subtitle2" Class="mt-4">Roles</MudText>
+            @foreach (var role in Roles.All)
+            {
+                <MudCheckBox T="bool" Label="@role"
+                             Value="_selectedRoles.Contains(role)"
+                             ValueChanged="value => ToggleRole(role, value)" />
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Create</MudButton>
+    </DialogActions>
+</MudDialog>

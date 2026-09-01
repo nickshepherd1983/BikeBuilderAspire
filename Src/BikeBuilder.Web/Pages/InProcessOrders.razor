@@ -1,5 +1,5 @@
 @page "/orders/in-process"
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.ViewOrders)]
 
 <PageTitle>In Process Orders</PageTitle>
 

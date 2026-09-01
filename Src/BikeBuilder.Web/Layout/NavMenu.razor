@@ -1,11 +1,18 @@
 <MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-    <AuthorizeView>
+    <AuthorizeView Policy="@Policies.ManageComponents">
         <MudNavLink Href="components" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Settings">Components</MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Policies.ManageBikeBuilds">
         <MudNavLink Href="bikebuilds" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.PedalBike">Bike Builds</MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Policies.ViewOrders">
         @* Match.All on both: /orders/in-process is a prefix of /orders, so Prefix here would
            light up Orders as well whenever the in-process page is open. *@
         <MudNavLink Href="orders" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.ShoppingCart">Orders</MudNavLink>
         <MudNavLink Href="orders/in-process" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.PendingActions">In Process</MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Policies.AdminOnly">
+        <MudNavLink Href="admin" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.AdminPanelSettings">Admin</MudNavLink>
     </AuthorizeView>
 </MudNavMenu>

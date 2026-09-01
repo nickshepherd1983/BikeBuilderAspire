@@ -12,8 +12,8 @@ public static class Query
           .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
   // Back-office view for the signed-in web app: order lists carry customer names/emails,
-  // so unlike the guest-checkout mutations this requires a JWT.
-  [Authorize]
+  // so unlike the guest-checkout mutations this requires a JWT with an order-viewing role.
+  [Authorize(Policies.ViewOrders)]
   public static async Task<List<Order>> GetOrders(OrdersDbContext db, CancellationToken cancellationToken) =>
       await db.Orders.Include(o => o.Items).AsNoTracking()
           .OrderByDescending(o => o.CreatedAt)
@@ -26,8 +26,8 @@ public static class Query
       store.GetAsync(id);
 
   // The back office's "in process" view. Carries customer names/emails just like GetOrders,
-  // so it takes the same JWT.
-  [Authorize]
+  // so it takes the same JWT and role.
+  [Authorize(Policies.ViewOrders)]
   public static Task<List<DraftOrder>> GetDraftOrders(DraftOrderStore store) =>
       store.ListAsync();
 }

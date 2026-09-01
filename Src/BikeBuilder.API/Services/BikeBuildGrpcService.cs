@@ -53,6 +53,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return ToMessage(bikeBuild, includeComponents: true);
   }
 
+  [Authorize(Policy = Policies.ManageBikeBuilds)]
   public override async Task<BikeBuildMessage> CreateBikeBuild(CreateBikeBuildRequest request, ServerCallContext context)
   {
     var bikeBuild = new Data.Entities.BikeBuild
@@ -77,6 +78,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return ToMessage(bikeBuild, includeComponents: false);
   }
 
+  [Authorize(Policy = Policies.ManageBikeBuilds)]
   public override async Task<BikeBuildMessage> UpdateBikeBuild(UpdateBikeBuildRequest request, ServerCallContext context)
   {
     var bikeBuild = await db.BikeBuilds.FirstOrDefaultAsync(b => b.Id == request.Id, context.CancellationToken)
@@ -91,6 +93,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return ToMessage(bikeBuild, includeComponents: false);
   }
 
+  [Authorize(Policy = Policies.ManageBikeBuilds)]
   public override async Task<DeleteBikeBuildResponse> DeleteBikeBuild(DeleteBikeBuildRequest request, ServerCallContext context)
   {
     var bikeBuild = await db.BikeBuilds.FirstOrDefaultAsync(b => b.Id == request.Id, context.CancellationToken)
@@ -102,6 +105,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return new DeleteBikeBuildResponse { Success = true };
   }
 
+  [Authorize(Policy = Policies.ManageBikeBuilds)]
   public override async Task<BikeBuildComponentMessage> AddBikeBuildComponent(AddBikeBuildComponentRequest request, ServerCallContext context)
   {
     var bikeBuildExists = await db.BikeBuilds.AnyAsync(b => b.Id == request.BikeBuildId, context.CancellationToken);
@@ -127,6 +131,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return ToMessage(bikeBuildComponent, component);
   }
 
+  [Authorize(Policy = Policies.ManageBikeBuilds)]
   public override async Task<BikeBuildComponentMessage> UpdateBikeBuildComponent(UpdateBikeBuildComponentRequest request, ServerCallContext context)
   {
     var bikeBuildComponent = await db.BikeBuildComponents.FirstOrDefaultAsync(x => x.Id == request.Id, context.CancellationToken)
@@ -144,6 +149,7 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
     return ToMessage(bikeBuildComponent, component);
   }
 
+  [Authorize(Policy = Policies.ManageBikeBuilds)]
   public override async Task<RemoveBikeBuildComponentResponse> RemoveBikeBuildComponent(RemoveBikeBuildComponentRequest request, ServerCallContext context)
   {
     var bikeBuildComponent = await db.BikeBuildComponents.FirstOrDefaultAsync(x => x.Id == request.Id, context.CancellationToken)

@@ -1,8 +1,9 @@
-﻿global using System.Security.Claims;
+global using System.Security.Claims;
 global using System.Text.Json;
 global using Azure.Messaging.ServiceBus;
 global using BikeBuilder.API.Ratings.Middleware;
 global using BikeBuilder.API.Ratings.Services;
+global using BikeBuilder.Contracts.Authorization;
 global using BikeBuilder.Contracts.Events;
 global using BikeBuilder.Contracts.Messaging;
 global using Microsoft.AspNetCore.Http;

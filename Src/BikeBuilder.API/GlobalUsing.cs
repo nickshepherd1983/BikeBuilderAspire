@@ -1,4 +1,4 @@
-﻿global using System.Globalization;
+global using System.Globalization;
 global using System.Text.Json;
 global using Azure.Messaging.ServiceBus;
 global using Azure.Storage.Blobs;
@@ -6,6 +6,7 @@ global using BikeBuilder.API.Data;
 global using BikeBuilder.API.Data.Entities;
 global using BikeBuilder.API.Protos;
 global using BikeBuilder.API.Services;
+global using BikeBuilder.Contracts.Authorization;
 global using BikeBuilder.Contracts.Components;
 global using BikeBuilder.Contracts.Events;
 global using BikeBuilder.Contracts.Messaging;

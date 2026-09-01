@@ -1,4 +1,5 @@
 using BikeBuilder.API.Endpoints;
+using BikeBuilder.API.UserAdmin;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 // Not a global using: OpenTelemetry.Trace's Status/StatusCode collide with Grpc.Core's in
 // the gRPC services.
@@ -40,6 +41,9 @@ builder.Services.AddCors(options =>
             .WithExposedHeaders("Grpc-Status", "Grpc-Message", "Grpc-Encoding", "Grpc-Accept-Encoding"));
 });
 
+// "role" in test mode (the stub issuer's plain claim), the Auth0 namespaced claim otherwise.
+var roleClaim = RoleClaim.Resolve(builder.Configuration[RoleClaim.ConfigKey]);
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -48,9 +52,48 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
       options.Audience = builder.Configuration["Auth0:Audience"];
       // False only in the integration-test environment, where the stub OIDC issuer is plain http.
       options.RequireHttpsMetadata = builder.Configuration.GetValue("Auth0:RequireHttpsMetadata", true);
+      // Keep the token's claim types as issued: the legacy inbound map renames "sub" and
+      // "role" to SOAP-era URIs, which would break both claim type settings below.
+      options.MapInboundClaims = false;
       options.TokenValidationParameters.NameClaimType = "sub";
+      options.TokenValidationParameters.RoleClaimType = roleClaim;
     });
-builder.Services.AddAuthorization();
+// The same policy set the WASM app registers client-side - see AuthorizationConstants.
+builder.Services.AddAuthorization(options =>
+{
+  foreach (var (name, allowedRoles) in Policies.All)
+    options.AddPolicy(name, policy => policy.RequireRole(allowedRoles));
+});
+
+// The Admin section's user store: the test OIDC mock in integration tests, the Auth0
+// Management API when its M2M credentials are configured (user secrets), a stub otherwise
+// so /admin degrades to a "not configured" notice.
+// Singletons: the mock directory carries the in-memory user registry and the token provider
+// carries the cached management token - per-request instances would lose both.
+if (builder.Configuration["UserAdmin:MockUrl"] is { Length: > 0 })
+{
+  builder.Services.AddHttpClient();
+  builder.Services.AddSingleton<IUserDirectory>(sp => new OidcMockUserDirectory(
+      sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+      sp.GetRequiredService<IConfiguration>()));
+}
+else if (builder.Configuration["Auth0:Management:Domain"] is { Length: > 0 } managementDomain)
+{
+  builder.Services.AddHttpClient();
+  builder.Services.AddSingleton(sp => new Auth0ManagementTokenProvider(
+      sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+      sp.GetRequiredService<IConfiguration>()));
+  builder.Services.AddSingleton<IUserDirectory>(sp =>
+  {
+    var client = sp.GetRequiredService<IHttpClientFactory>().CreateClient();
+    client.BaseAddress = new Uri($"https://{managementDomain}/api/v2/");
+    return new Auth0ManagementUserDirectory(client, sp.GetRequiredService<Auth0ManagementTokenProvider>());
+  });
+}
+else
+{
+  builder.Services.AddSingleton<IUserDirectory, NullUserDirectory>();
+}
 
 var app = builder.Build();
 
@@ -74,6 +117,7 @@ app.UseAuthorization();
 app.MapGrpcService<ComponentGrpcService>();
 app.MapGrpcService<BikeBuildGrpcService>();
 app.MapComponentImageEndpoints();
+app.MapAdminUserEndpoints();
 // Stays anonymous - the AppHost uses it as the health probe.
 app.MapGet("/", () => "BikeBuilder.API gRPC endpoints — use a gRPC-Web client.");
 app.MapDefaultEndpoints();

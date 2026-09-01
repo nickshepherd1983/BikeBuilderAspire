@@ -3,7 +3,20 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                    <RedirectToLogin />
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        @* Signed in but missing the page's role - redirecting to login here
+                           would just loop, so say what happened instead. The h1 keeps
+                           FocusOnNavigate working and gives the tests a heading to find. *@
+                        <MudText Typo="Typo.h4" HtmlTag="h1" GutterBottom="true">Not authorized</MudText>
+                        <MudAlert Severity="Severity.Warning">
+                            You are signed in as @context.User.Identity.Name but your account doesn't have access to this page.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
                 </NotAuthorized>
                 <Authorizing>
                     <MudProgressCircular Indeterminate="true" />

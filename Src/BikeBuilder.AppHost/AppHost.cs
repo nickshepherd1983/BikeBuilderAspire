@@ -86,10 +86,17 @@ if (isTest)
           $$$"""{"IssuerUri":"{{{TestOidcIssuer}}}","AccessTokenJwtType":"JWT","Authentication":{"CookieSameSiteMode":"Lax"},"Endpoints":{"EnableCheckSessionEndpoint":false}}""")
       .WithEnvironment("API_SCOPES_INLINE",
           $$"""[{"Name":"{{OidcAudience}}"}]""")
-      // UserClaims: puts the user's name claim into access tokens for this API, the way a
-      // real Auth0 tenant would via an Action - the ratings service reads it for userName.
+      // UserClaims: puts the user's name and role claims into access tokens for this API,
+      // the way a real Auth0 tenant would via an Action - the ratings service reads name
+      // for userName, and every service reads role for authorization.
       .WithEnvironment("API_RESOURCES_INLINE",
-          $$"""[{"Name":"{{OidcAudience}}","Scopes":["{{OidcAudience}}"],"UserClaims":["name"]}]""")
+          $$"""[{"Name":"{{OidcAudience}}","Scopes":["{{OidcAudience}}"],"UserClaims":["name","role"]}]""")
+      // The WASM app builds its principal from the ID token, so role has to be an identity
+      // claim too (paired with the client's AlwaysIncludeUserClaimsInIdToken below). NOTE:
+      // identity resources use "ClaimTypes" in this image's config model, unlike the API
+      // resources' "UserClaims" - an unknown property crashes the container at startup.
+      .WithEnvironment("IDENTITY_RESOURCES_INLINE",
+          """[{"Name":"roles","ClaimTypes":["role"]}]""")
       .WithEnvironment("CLIENTS_CONFIGURATION_INLINE",
           $$"""
           [{
@@ -100,18 +107,25 @@ if (isTest)
             "RedirectUris": ["{{TestWebBaseAddress}}/authentication/login-callback"],
             "PostLogoutRedirectUris": ["{{TestWebBaseAddress}}/authentication/logout-callback"],
             "AllowedCorsOrigins": ["{{TestWebBaseAddress}}"],
-            "AllowedScopes": ["openid", "profile", "{{OidcAudience}}"],
+            "AllowedScopes": ["openid", "profile", "roles", "{{OidcAudience}}"],
             "AccessTokenType": "Jwt",
-            "AllowAccessTokensViaBrowser": true
+            "AllowAccessTokensViaBrowser": true,
+            "AlwaysIncludeUserClaimsInIdToken": true
           }]
           """)
+      // Admin so the existing smoke tests can keep exercising every surface; further users
+      // with narrower roles are created at runtime through the Admin section (the mock's
+      // POST /api/v1/user), which is itself covered by AdminSmokeTests.
       .WithEnvironment("USERS_CONFIGURATION_INLINE",
           """
           [{
             "SubjectId": "test-user",
             "Username": "testuser",
             "Password": "password",
-            "Claims": [{"Type": "name", "Value": "Test User", "ValueType": "string"}]
+            "Claims": [
+              {"Type": "name", "Value": "Test User", "ValueType": "string"},
+              {"Type": "role", "Value": "Admin", "ValueType": "string"}
+            ]
           }]
           """)
       .WithHttpHealthCheck("/.well-known/openid-configuration");
@@ -150,6 +164,10 @@ if (isTest)
       .WithEnvironment("Auth0__Authority", TestOidcIssuer)
       .WithEnvironment("Auth0__Audience", OidcAudience)
       .WithEnvironment("Auth0__RequireHttpsMetadata", "false")
+      // The stub issuer mints plain "role" claims; Auth0 uses the namespaced default.
+      .WithEnvironment("Auth0__RoleClaim", "role")
+      // The Admin section's user store: the stub's runtime user API on the same origin.
+      .WithEnvironment("UserAdmin__MockUrl", TestOidcIssuer)
       .WaitFor(oidc!);
 }
 // After endpoint setup - a health check needs the endpoint to exist. "/" is the anonymous
@@ -174,6 +192,7 @@ if (isTest)
   orders.WithHttpEndpoint(port: 18600)
       .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
       .WithEnvironment("Auth0__RequireHttpsMetadata", "false")
+      .WithEnvironment("Auth0__RoleClaim", "role")
       .WaitFor(oidc!);
 }
 orders.WithHttpHealthCheck("/");
@@ -197,6 +216,7 @@ if (isTest)
 {
   ratings.WithEndpoint("http", endpoint => endpoint.Port = 18500)
       .WithEnvironment("Auth0__RequireHttpsMetadata", "false")
+      .WithEnvironment("Auth0__RoleClaim", "role")
       .WaitFor(oidc!);
 }
 else

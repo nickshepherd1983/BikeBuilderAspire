@@ -1,0 +1,71 @@
+@page "/admin"
+@attribute [Authorize(Policy = Policies.AdminOnly)]
+
+<PageTitle>Admin</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" GutterBottom="true">Admin</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Manage users and the roles that control access to this app.</MudText>
+
+@if (_capabilities is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_capabilities.Mode == "none")
+{
+    <MudAlert Severity="Severity.Info">
+        User administration is not configured. Set the Auth0 Management API credentials on
+        BikeBuilder.API (Auth0:Management:Domain / ClientId / ClientSecret) to enable it.
+    </MudAlert>
+}
+else
+{
+    @if (!_capabilities.CanEditRoles)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            The test identity server can create users but not change existing ones - role edits are
+            managed in Auth0.
+        </MudAlert>
+    }
+
+    <MudPaper Class="pa-4">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+            <MudText Typo="Typo.h6">Users</MudText>
+            @if (_capabilities.CanCreateUsers)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="CreateUser">
+                    New User
+                </MudButton>
+            }
+        </MudStack>
+
+        <MudTable Items="_users" Hover="true" Loading="_loading" Dense="true">
+            <HeaderContent>
+                <MudTh>Username</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>Roles</MudTh>
+                @if (_capabilities.CanEditRoles)
+                {
+                    <MudTh style="width: 1%"></MudTh>
+                }
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Username">@context.Username</MudTd>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Roles">
+                    @foreach (var role in context.Roles)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@role</MudChip>
+                    }
+                </MudTd>
+                @if (_capabilities.CanEditRoles)
+                {
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       aria-label="Edit roles" OnClick="() => EditRoles(context)" />
+                    </MudTd>
+                }
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}

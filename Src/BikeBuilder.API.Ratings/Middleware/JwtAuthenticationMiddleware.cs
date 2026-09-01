@@ -13,9 +13,17 @@ sealed class JwtAuthenticationMiddleware : IFunctionsWorkerMiddleware
 {
   public const string UserContextKey = "User";
 
+  // Function name -> roles allowed to invoke it. Functions not listed here only require a
+  // valid token. CreateRating is BikeBuilder/Admin: rating lives on the bike-build surface.
+  static readonly Dictionary<string, string[]> RequiredRoles = new()
+  {
+    ["CreateRating"] = [Roles.BikeBuilder, Roles.Admin],
+  };
+
   readonly ConfigurationManager<OpenIdConnectConfiguration> _configurationManager;
   readonly JsonWebTokenHandler _tokenHandler = new();
   readonly string _audience;
+  readonly string _roleClaim;
 
   public JwtAuthenticationMiddleware(IConfiguration config)
   {
@@ -23,6 +31,8 @@ sealed class JwtAuthenticationMiddleware : IFunctionsWorkerMiddleware
         ?? throw new InvalidOperationException("Auth0:Authority is not configured.")).TrimEnd('/');
     _audience = config["Auth0:Audience"]
         ?? throw new InvalidOperationException("Auth0:Audience is not configured.");
+    // "role" in test mode (the stub issuer's plain claim), the Auth0 namespaced claim otherwise.
+    _roleClaim = RoleClaim.Resolve(config[RoleClaim.ConfigKey]);
     _configurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
         $"{authority}/.well-known/openid-configuration",
         new OpenIdConnectConfigurationRetriever(),
@@ -45,7 +55,10 @@ sealed class JwtAuthenticationMiddleware : IFunctionsWorkerMiddleware
       ValidIssuer = oidc.Issuer,
       ValidAudience = _audience,
       IssuerSigningKeys = oidc.SigningKeys,
-      NameClaimType = "sub"
+      NameClaimType = "sub",
+      // JsonWebTokenHandler does no inbound claim-type mapping, so the raw claim type from
+      // the token is what IsInRole matches against.
+      RoleClaimType = _roleClaim
     });
 
     if (!result.IsValid)
@@ -54,7 +67,15 @@ sealed class JwtAuthenticationMiddleware : IFunctionsWorkerMiddleware
       return;
     }
 
-    context.Items[UserContextKey] = new ClaimsPrincipal(result.ClaimsIdentity);
+    var principal = new ClaimsPrincipal(result.ClaimsIdentity);
+    if (RequiredRoles.TryGetValue(context.FunctionDefinition.Name, out var allowedRoles)
+        && !allowedRoles.Any(principal.IsInRole))
+    {
+      http.Response.StatusCode = StatusCodes.Status403Forbidden;
+      return;
+    }
+
+    context.Items[UserContextKey] = principal;
     await next(context);
   }
 }

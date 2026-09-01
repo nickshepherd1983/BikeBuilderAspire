@@ -3,6 +3,7 @@ global using BikeBuilder.API.Orders.Data;
 global using BikeBuilder.API.Orders.Data.Entities;
 global using BikeBuilder.API.Orders.Services;
 global using BikeBuilder.API.Protos;
+global using BikeBuilder.Contracts.Authorization;
 global using BikeBuilder.Contracts.Events;
 global using BikeBuilder.Contracts.Messaging;
 global using HotChocolate;

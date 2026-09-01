@@ -83,10 +83,22 @@ if (auth0Authority is not null)
         options.Audience = builder.Configuration["Auth0:Audience"];
         // False only in the integration-test environment, where the stub OIDC issuer is plain http.
         options.RequireHttpsMetadata = builder.Configuration.GetValue("Auth0:RequireHttpsMetadata", true);
+        // Keep the token's claim types as issued: the legacy inbound map renames "sub" and
+        // "role" to SOAP-era URIs, which would break both claim type settings below.
+        options.MapInboundClaims = false;
         options.TokenValidationParameters.NameClaimType = "sub";
+        // "role" in test mode (the stub issuer's plain claim), the Auth0 namespaced claim otherwise.
+        options.TokenValidationParameters.RoleClaimType = RoleClaim.Resolve(builder.Configuration[RoleClaim.ConfigKey]);
       });
 }
-builder.Services.AddAuthorization();
+// Policies registered unconditionally - HotChocolate's authorize attributes resolve them by
+// name. Without the config-gated JwtBearer above there is no authenticated user, so the
+// protected fields simply can't be executed - same behavior as before.
+builder.Services.AddAuthorization(options =>
+{
+  foreach (var (name, allowedRoles) in Policies.All)
+    options.AddPolicy(name, policy => policy.RequireRole(allowedRoles));
+});
 
 // The signed-in web app queries this GraphQL endpoint straight from the browser.
 var webAppOrigins = builder.Configuration.GetSection("WebAppOrigins").Get<string[]>()

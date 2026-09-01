@@ -8,7 +8,16 @@ static class NavigationHelper
   /// data-dependent gRPC call succeeds, so a short settle delay plus an explicit check of
   /// Blazor's fatal-render-error banner is needed to confirm the page actually loaded its data.
   /// </summary>
-  public static async Task GotoAndWaitForHeadingAsync(IPage page, string url, string expectedHeading)
+  public static Task GotoAndWaitForHeadingAsync(IPage page, string url, string expectedHeading) =>
+      GotoAndWaitForHeadingAsync(page, url, expectedHeading,
+          BikeBuilderAppFixture.OidcTestUsername, BikeBuilderAppFixture.OidcTestPassword);
+
+  /// <summary>
+  /// Same navigation, but signing in as a specific user - used by the role tests to log in
+  /// as users the Admin section created at runtime. A fresh browser context is required for
+  /// a different user: the stub issuer's session cookie otherwise SSOs the previous one.
+  /// </summary>
+  public static async Task GotoAndWaitForHeadingAsync(IPage page, string url, string expectedHeading, string username, string password)
   {
     var started = DateTime.UtcNow;
     var consoleMessages = new List<string>();
@@ -40,8 +49,8 @@ static class NavigationHelper
 
       if (await usernameField.IsVisibleAsync())
       {
-        await usernameField.FillAsync(BikeBuilderAppFixture.OidcTestUsername);
-        await page.Locator("input[name='Input.Password']").FillAsync(BikeBuilderAppFixture.OidcTestPassword);
+        await usernameField.FillAsync(username);
+        await page.Locator("input[name='Input.Password']").FillAsync(password);
         await page.Locator("button[name='Input.Button'][value='login']").ClickAsync();
       }
 

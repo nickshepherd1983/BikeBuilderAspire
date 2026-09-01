@@ -28,6 +28,17 @@ builder.Services.AddOidcAuthentication(options =>
   {
     options.ProviderOptions.DefaultScopes.Add(scope);
   }
+  // The ID-token claim the principal factory turns into role claims - Auth0's namespaced
+  // claim (minted by the post-login Action) or the stub issuer's plain "role" in tests.
+  options.UserOptions.RoleClaim = RoleClaim.Resolve(builder.Configuration[RoleClaim.ConfigKey]);
+});
+
+// The same policy set the services enforce, so AuthorizeRouteView/AuthorizeView gate pages,
+// nav links, and home cards consistently with the backend.
+builder.Services.AddAuthorizationCore(options =>
+{
+  foreach (var (name, allowedRoles) in Policies.All)
+    options.AddPolicy(name, policy => policy.RequireRole(allowedRoles));
 });
 
 var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "http://localhost:7500";
@@ -72,6 +83,15 @@ builder.Services.AddScoped(sp =>
       .ConfigureHandler(authorizedUrls: [apiBaseAddress]);
   handler.InnerHandler = new HttpClientHandler();
   return new ComponentImageClient(new HttpClient(handler) { BaseAddress = new Uri(apiBaseAddress) });
+});
+
+// Admin-only user administration; same origin and token handling as the image client.
+builder.Services.AddScoped(sp =>
+{
+  var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
+      .ConfigureHandler(authorizedUrls: [apiBaseAddress]);
+  handler.InnerHandler = new HttpClientHandler();
+  return new AdminClient(new HttpClient(handler) { BaseAddress = new Uri(apiBaseAddress) });
 });
 
 // These two base addresses carry the gateway's /ratings and /orders path prefixes, so the

@@ -66,7 +66,7 @@ public static class ComponentImageEndpoints
         await storage.DeleteAsync(oldBlobName, ct);
 
       return Results.Ok(new { hasImage = true, imageVersion = uploadedAt.UtcTicks });
-    }).DisableAntiforgery().RequireAuthorization();
+    }).DisableAntiforgery().RequireAuthorization(Policies.ManageComponents);
 
     app.MapDelete("/api/components/{id:int}/image", async (int id,
         BikeBuilderDbContext db, ComponentImageStorageService storage, CancellationToken ct) =>
@@ -81,7 +81,7 @@ public static class ComponentImageEndpoints
       await storage.DeleteAsync(blobName, ct);
 
       return Results.NoContent();
-    }).RequireAuthorization();
+    }).RequireAuthorization(Policies.ManageComponents);
 
     // Deliberately anonymous: this is fetched by <img src> tags, which cannot attach an
     // Authorization header. Image bytes are the least-sensitive data served by this API.

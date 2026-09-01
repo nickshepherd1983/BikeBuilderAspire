@@ -1,5 +1,5 @@
 @page "/bikebuilds"
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.ManageBikeBuilds)]
 
 <PageTitle>Bike Builds</PageTitle>
 

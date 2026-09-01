@@ -1,5 +1,5 @@
 @page "/orders"
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.ViewOrders)]
 
 <PageTitle>Orders</PageTitle>
 

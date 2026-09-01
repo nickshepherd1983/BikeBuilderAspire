@@ -189,6 +189,70 @@ only runs when you tell it to). Running it a second time refuses to touch a non-
 to wipe and reseed, run it by hand with the connection strings from the dashboard's environment
 view and pass `--reset`.
 
+## Roles & authorization
+
+Access to the signed-in web app is role-based. Roles arrive as a claim in the Auth0 tokens
+(a namespaced custom claim, `https://bikebuilder/roles`; the integration tests' stub issuer
+uses a plain `role` claim — the claim type is the `Auth0:RoleClaim` config key everywhere).
+The same policies are registered client-side (pages, nav links, home cards) and server-side
+(gRPC writes, GraphQL order queries, the ratings Function), so hiding a button is never the
+only line of defense.
+
+| Role | Grants |
+| --- | --- |
+| `ComponentEditor` | Create/edit/delete components and their images; the Components page |
+| `BikeBuilder` | Create/edit/delete bike builds and their component assignments; rate builds; the Bike Builds pages |
+| `OrderViewer` | The Orders and In Process pages (the role-gated GraphQL order queries) |
+| `Admin` | Everything above, plus the Admin page for managing users and roles |
+
+Catalog *reads* stay anonymous — the public storefront depends on them. A signed-in user
+with no roles can open the app but sees only the Home page; navigating anywhere else shows
+a "Not authorized" message.
+
+### The Admin page
+
+`/admin` (Admin role) manages users through whichever backend `BikeBuilder.API` has
+configured:
+
+- **Real Auth0** — the Management API, via an M2M application (see the runbook below).
+  Lists users with their roles, creates users, and edits existing users' roles. Configure
+  with user secrets on the API project:
+
+  ```powershell
+  dotnet user-secrets set Auth0:Management:Domain dev-xyz.us.auth0.com --project Src/BikeBuilder.API
+  dotnet user-secrets set Auth0:Management:ClientId <m2m-client-id> --project Src/BikeBuilder.API
+  dotnet user-secrets set Auth0:Management:ClientSecret <m2m-secret> --project Src/BikeBuilder.API
+  ```
+
+- **Integration tests** — the stub OIDC container's runtime API (`POST /api/v1/user`). The
+  Admin page can list known users and *create* users with roles (which is how the role
+  smoke test provisions an OrderViewer mid-run), but the pinned image cannot change an
+  existing user, so role edits are hidden in this mode.
+
+- **Neither configured** — the page shows a "user administration is not configured" notice.
+
+### Auth0 tenant runbook (one-time)
+
+1. **Roles**: User Management → Roles → create `ComponentEditor`, `BikeBuilder`,
+   `OrderViewer`, `Admin`; assign them to your users.
+2. **Action**: Actions → Library → build a custom post-login Action and attach it to the
+   Login flow, so the roles land in both tokens:
+
+   ```js
+   exports.onExecutePostLogin = async (event, api) => {
+     const roles = event.authorization?.roles ?? [];
+     api.idToken.setCustomClaim('https://bikebuilder/roles', roles);
+     api.accessToken.setCustomClaim('https://bikebuilder/roles', roles);
+   };
+   ```
+
+3. **M2M app for the Admin page** (optional): Applications → create a Machine to Machine
+   application authorized for the **Auth0 Management API** with scopes `read:users`,
+   `create:users`, `read:roles`, `read:role_members`, `create:role_members`,
+   `delete:role_members`; wire its credentials into the API's user secrets as above.
+4. **Verify**: sign in, paste the access token into jwt.io, and check the
+   `https://bikebuilder/roles` claim carries your roles.
+
 ## Storefront
 
 The storefront is the public site's landing page at https://localhost:7300 (`/store` still
@@ -242,11 +306,15 @@ convention, click through it). Telemetry is in-memory and resets with the AppHos
 dotnet test Src/BikeBuilder.Test.Integration
 ```
 
-Two end-to-end tests cover the whole journey: one logs in, creates a component with an image,
+Three end-to-end tests cover the whole journey: one logs in, creates a component with an image,
 builds a bike, rates it, and verifies the component, build and rating toasts land live on the
-public site; the other buys from the storefront as a guest, checks the open cart shows on the
+public site; another buys from the storefront as a guest, checks the open cart shows on the
 web app's In Process page and is gone once processed, and verifies the order toast on both the
-public site and the signed-in web app. Requires Docker and the
+public site and the signed-in web app; the third exercises the role system — as the Admin it
+creates an OrderViewer user through the Admin page, signs in as that user in a fresh browser
+context, and checks the nav is trimmed to the order sections and a direct hit on /components
+lands on the "Not authorized" page. (The stub user `testuser` carries the Admin role, which is
+why the other tests can touch every surface.) Requires Docker and the
 Azure Functions Core Tools. The Aspire testing host (`Aspire.Hosting.Testing`) runs the same
 AppHost in test mode: fixed 18xxx ports, a stub OIDC issuer instead of Auth0, and
 session-scoped containers that are torn down with the fixture. Debugging the test from Visual
