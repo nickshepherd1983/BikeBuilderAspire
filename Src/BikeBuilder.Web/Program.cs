@@ -31,7 +31,9 @@ builder.Services.AddOidcAuthentication(options =>
   // The ID-token claim the principal factory turns into role claims - Auth0's namespaced
   // claim (minted by the post-login Action) or the stub issuer's plain "role" in tests.
   options.UserOptions.RoleClaim = RoleClaim.Resolve(builder.Configuration[RoleClaim.ConfigKey]);
-});
+})
+// Flattens Auth0's JSON-array roles claim into one claim per role - see the factory.
+.AddAccountClaimsPrincipalFactory<RolesClaimsPrincipalFactory>();
 
 // The same policy set the services enforce, so AuthorizeRouteView/AuthorizeView gate pages,
 // nav links, and home cards consistently with the backend.

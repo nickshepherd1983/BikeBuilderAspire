@@ -4,6 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Holds the Auth0 Management API credentials for the Admin section's user directory
+         (Auth0:Management:Domain/ClientId/ClientSecret) - loaded automatically in
+         Development, never committed. See the README's Auth0 tenant runbook. -->
+    <UserSecretsId>bikebuilder-api</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
