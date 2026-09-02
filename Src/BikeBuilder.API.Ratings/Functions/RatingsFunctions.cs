@@ -109,6 +109,49 @@ public class RatingsFunctions(Container container, IEventPublisher eventPublishe
     return new OkObjectResult(ratings);
   }
 
+  // The review text across every build - what customers actually wrote - newest first,
+  // optionally narrowed to comments containing a phrase and/or a star range. Backs the
+  // assistant's "what do reviewers say about ..." questions.
+  [Function("SearchRatings")]
+  public async Task<IActionResult> SearchRatingsAsync(
+      [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ratings/search")] HttpRequest req,
+      FunctionContext context)
+  {
+    var text = req.Query["text"].ToString().Trim();
+    if (text.Length > MaxSearchTextLength)
+      return new BadRequestObjectResult($"text must be at most {MaxSearchTextLength} characters.");
+
+    var minStars = ParseStars(req.Query["minStars"], 1);
+    var maxStars = ParseStars(req.Query["maxStars"], 5);
+    var take = int.TryParse(req.Query["take"], out var requested) ? Math.Clamp(requested, 1, MaxSearchResults) : DefaultSearchResults;
+
+    // Cross-partition on purpose: comments span every bikeBuildId partition. LOWER + a
+    // lowercased parameter keeps the match case-insensitive on every emulator version.
+    var query = new QueryDefinition(
+            "SELECT * FROM c WHERE IS_STRING(c.comment) AND c.stars >= @minStars AND c.stars <= @maxStars " +
+            "AND (@text = \"\" OR CONTAINS(LOWER(c.comment), @text)) ORDER BY c.createdAt DESC")
+        .WithParameter("@text", text.ToLowerInvariant())
+        .WithParameter("@minStars", minStars)
+        .WithParameter("@maxStars", maxStars);
+
+    var ratings = new List<RatingDocument>();
+    using var iterator = container.GetItemQueryIterator<RatingDocument>(query,
+        requestOptions: new QueryRequestOptions { MaxItemCount = take });
+    while (iterator.HasMoreResults && ratings.Count < take)
+    {
+      ratings.AddRange(await iterator.ReadNextAsync(context.CancellationToken));
+    }
+
+    return new OkObjectResult(ratings.Take(take));
+  }
+
+  const int MaxSearchTextLength = 200;
+  const int DefaultSearchResults = 20;
+  const int MaxSearchResults = 100;
+
+  static int ParseStars(string? value, int fallback) =>
+      int.TryParse(value, out var stars) ? Math.Clamp(stars, 1, 5) : fallback;
+
   [Function("GetRatingSummaries")]
   public async Task<IActionResult> GetRatingSummariesAsync(
       [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "bikebuilds/ratings/summaries")] HttpRequest req,

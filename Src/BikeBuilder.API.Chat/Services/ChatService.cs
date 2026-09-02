@@ -31,6 +31,9 @@ public sealed class ChatService(
       - Call describe_data first if you are unsure which tool fits the question.
       - Prefer tools that aggregate for you (orders_summary, top_rated_bike_builds, sorting by cost or
         total) over paging through long lists.
+      - For what customers say or feel, read the review text: list_ratings for one build,
+        search_rating_comments across builds (with a phrase or star range). Quote or summarise the
+        comments rather than reporting only star counts.
       - Money is in US dollars: always write it with a dollar sign and two decimals, for example
         $23.99 or $1,234.50 - never a bare number and never another currency symbol.
       - Dates and times are always written as MM/dd/yyyy HH:mm (for example 09/02/2026 14:30);

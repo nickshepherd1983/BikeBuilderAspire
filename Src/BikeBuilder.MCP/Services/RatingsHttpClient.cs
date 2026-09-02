@@ -7,6 +7,13 @@ public class RatingsHttpClient(HttpClient _http)
   public async Task<List<RatingDto>> ListAsync(int bikeBuildId, CancellationToken cancellationToken) =>
       await _http.GetFromJsonAsync<List<RatingDto>>($"api/bikebuilds/{bikeBuildId}/ratings", cancellationToken) ?? [];
 
+  // Review text across every build, newest first; the service narrows by phrase and stars.
+  public async Task<List<RatingDto>> SearchAsync(string? text, int minStars, int maxStars, int take, CancellationToken cancellationToken)
+  {
+    var query = $"api/ratings/search?text={Uri.EscapeDataString(text ?? "")}&minStars={minStars}&maxStars={maxStars}&take={take}";
+    return await _http.GetFromJsonAsync<List<RatingDto>>(query, cancellationToken) ?? [];
+  }
+
   public async Task<List<RatingSummaryDto>> GetSummariesAsync(IEnumerable<int> bikeBuildIds, CancellationToken cancellationToken)
   {
     var ids = string.Join(',', bikeBuildIds);

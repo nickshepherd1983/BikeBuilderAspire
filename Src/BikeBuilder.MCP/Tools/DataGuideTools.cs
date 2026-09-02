@@ -27,9 +27,11 @@ public sealed class DataGuideTools
       OrderViewer or Admin role.
 
       RATINGS - 1 to 5 star reviews of bike builds, keyed by bike build id, with an optional comment
-      and the reviewer's name. Tools: list_ratings (one build's reviews), get_rating_summaries (count
-      and average for several builds), top_rated_bike_builds (ranked list; set lowestFirst for the
-      worst rated).
+      (the review text) and the reviewer's name. Tools: list_ratings (one build's reviews with their
+      text), search_rating_comments (review text across all builds, optionally containing a phrase
+      or within a star range - use it for "what do customers say about ..."), get_rating_summaries
+      (count and average for several builds), top_rated_bike_builds (ranked list; set lowestFirst
+      for the worst rated).
 
       Formats: money values come as US dollar strings with two decimals ("$1,234.56"); dates and times
       come as "MM/dd/yyyy HH:mm" in UTC. Repeat both exactly as given. Ids are integers except draft

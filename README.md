@@ -341,8 +341,8 @@ Two pieces make it work, both orchestrated by the AppHost:
 - **`BikeBuilder.MCP`** is a [Model Context Protocol](https://modelcontextprotocol.io) server
   at http://localhost:7601/mcp with read-only tools: `search_components`, `get_component`,
   `search_bike_builds`, `get_bike_build`, `list_orders`, `get_order`, `list_draft_orders`,
-  `orders_summary`, `list_ratings`, `get_rating_summaries`, `top_rated_bike_builds`, and a
-  `describe_data` orientation. It owns no database — it calls `api` (gRPC-Web), `orders`
+  `orders_summary`, `list_ratings`, `search_rating_comments` (review text across builds),
+  `get_rating_summaries`, `top_rated_bike_builds`, and a `describe_data` orientation. It owns no database — it calls `api` (gRPC-Web), `orders`
   (GraphQL) and `ratings` (REST) like the web apps do, and forwards the caller's bearer token so
   the role-gated order queries apply to the actual user.
 - **`BikeBuilder.API.Chat`** runs the tool-calling loop with Microsoft.Extensions.AI and
