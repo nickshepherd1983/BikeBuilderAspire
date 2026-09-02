@@ -122,8 +122,31 @@ public static class DatabaseSeeder
     db.BikeBuilds.AddRange(builds);
     await db.SaveChangesAsync();
 
+    var ratings = await SeedRatingsAsync([.. builds.Select(build => build.Id)], ratingsContainer, random);
+
+    return new SeedSummary(components.Count, builds.Count, ratings);
+  }
+
+  /// <summary>Counts the documents in the ratings container (the --ratings-only guard).</summary>
+  public static async Task<int> CountRatingsAsync(Container ratingsContainer)
+  {
+    using var iterator = ratingsContainer.GetItemQueryIterator<int>(new QueryDefinition("SELECT VALUE COUNT(1) FROM c"));
+    var count = 0;
+    while (iterator.HasMoreResults)
+      count += (await iterator.ReadNextAsync()).Sum();
+
+    return count;
+  }
+
+  /// <summary>
+  /// Writes 1-30 ratings per bike build straight to Cosmos. Split out so a stack whose
+  /// catalog is already seeded (or whose ratings emulator started empty) can get ratings
+  /// on their own without wiping and renumbering the catalog.
+  /// </summary>
+  public static async Task<int> SeedRatingsAsync(IReadOnlyList<int> bikeBuildIds, Container ratingsContainer, Random random)
+  {
     var documents = new List<RatingDocument>();
-    foreach (var build in builds)
+    foreach (var bikeBuildId in bikeBuildIds)
     {
       var ratingCount = random.Next(1, 31);
       for (var i = 0; i < ratingCount; i++)
@@ -132,7 +155,7 @@ public static class DatabaseSeeder
         documents.Add(new RatingDocument
         {
           Id = Guid.NewGuid().ToString(),
-          BikeBuildId = build.Id.ToString(),
+          BikeBuildId = bikeBuildId.ToString(),
           Stars = SeedPools.WeightedStars(random),
           Comment = random.NextDouble() < 0.8 ? SeedPools.Comments[random.Next(SeedPools.Comments.Length)] : null,
           UserId = $"auth0|seed-user-{raterIndex:D2}",
@@ -171,7 +194,7 @@ public static class DatabaseSeeder
       }
     }));
 
-    return new SeedSummary(components.Count, builds.Count, documents.Count);
+    return documents.Count;
   }
 }
 

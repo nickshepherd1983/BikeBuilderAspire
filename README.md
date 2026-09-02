@@ -238,7 +238,9 @@ To fill the dev stack with realistic sample data (1000+ components, 100 bike bui
 start the `dataseeder` resource from the Aspire dashboard (it's marked explicit-start, so it
 only runs when you tell it to). Running it a second time refuses to touch a non-empty database;
 to wipe and reseed, run it by hand with the connection strings from the dashboard's environment
-view and pass `--reset`.
+view and pass `--reset`. If only the ratings are missing (the Cosmos emulator started empty
+while the catalog survived), pass `--ratings-only` instead: it leaves the catalog alone and
+rates the bike builds it already has.
 
 ## Roles & authorization
 
