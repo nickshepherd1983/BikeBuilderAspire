@@ -31,7 +31,9 @@ public sealed class DataGuideTools
       and average for several builds), top_rated_bike_builds (ranked list; set lowestFirst for the
       worst rated).
 
-      Prices are decimal amounts in the shop's currency. Ids are integers except draft order ids.
+      Formats: money values come as US dollar strings with two decimals ("$1,234.56"); dates and times
+      come as "MM/dd/yyyy HH:mm" in UTC. Repeat both exactly as given. Ids are integers except draft
+      order ids.
       """;
 
   [McpServerTool(Name = "describe_data", ReadOnly = true, Idempotent = true),

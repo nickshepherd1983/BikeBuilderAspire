@@ -21,6 +21,17 @@ public static class ToolSupport
   public static decimal ParseMoney(string value) =>
       decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0m;
 
+  // Tool results are read by a language model that copies values verbatim into its answer,
+  // so money and dates leave here already in the shape the answer should show them: dollars
+  // with two decimals and thousands separators, and MM/dd/yyyy HH:mm in UTC.
+  public static string Money(decimal amount) => amount.ToString("$#,##0.00", CultureInfo.InvariantCulture);
+
+  public static string Money(string wireAmount) => Money(ParseMoney(wireAmount));
+
+  public static string Date(DateTimeOffset value) => value.ToUniversalTime().ToString("MM/dd/yyyy HH:mm", CultureInfo.InvariantCulture);
+
+  public static string? Date(DateTimeOffset? value) => value is null ? null : Date(value.Value);
+
   public static string Trim(string text, int maxLength = DescriptionLength)
   {
     if (string.IsNullOrWhiteSpace(text))

@@ -17,20 +17,20 @@ public sealed class OrdersTools(OrdersGraphQLClient _orders)
       CancellationToken cancellationToken = default)
   {
     var orders = await _orders.ListOrdersAsync(cancellationToken);
-    return new OrderList(orders.Count, [.. orders.Take(ToolSupport.PageSize(take))], ScopeNote);
+    return new OrderList(orders.Count, [.. orders.Take(ToolSupport.PageSize(take)).Select(ToView)], ScopeNote);
   }
 
   [McpServerTool(Name = "get_order", ReadOnly = true, Idempotent = true),
    Description("Gets one placed order by its integer id, with customer details and every line item.")]
-  public async Task<OrderDto> GetOrder(
+  public async Task<OrderView> GetOrder(
       [Description("The order id.")] int id,
       CancellationToken cancellationToken = default) =>
-      await _orders.GetOrderAsync(id, cancellationToken) ?? throw new McpException($"Order {id} was not found.");
+      ToView(await _orders.GetOrderAsync(id, cancellationToken) ?? throw new McpException($"Order {id} was not found."));
 
   [McpServerTool(Name = "list_draft_orders", ReadOnly = true, Idempotent = true),
    Description("Lists draft orders: carts shoppers are still filling in, which expire an hour after their last change. Each has a Guid id, customer, expiry time, total and line items.")]
-  public async Task<List<DraftOrderDto>> ListDraftOrders(CancellationToken cancellationToken = default) =>
-      await _orders.ListDraftOrdersAsync(cancellationToken);
+  public async Task<List<DraftOrderView>> ListDraftOrders(CancellationToken cancellationToken = default) =>
+      [.. (await _orders.ListDraftOrdersAsync(cancellationToken)).Select(ToView)];
 
   [McpServerTool(Name = "orders_summary", ReadOnly = true, Idempotent = true),
    Description("Summarises placed orders: order count, total revenue, average order value, date range, the top products by quantity and by revenue, and the top customers by spend. Use this for any question about totals, revenue or best sellers.")]
@@ -38,49 +38,101 @@ public sealed class OrdersTools(OrdersGraphQLClient _orders)
   {
     var orders = await _orders.ListOrdersAsync(cancellationToken);
     if (orders.Count == 0)
-      return new OrdersSummary(0, 0, 0, null, null, [], [], [], ScopeNote);
+      return new OrdersSummary(0, ToolSupport.Money(0m), ToolSupport.Money(0m), null, null, [], [], [], ScopeNote);
 
     var revenue = orders.Sum(order => order.Total);
     var productSales = orders
         .SelectMany(order => order.Items)
         .GroupBy(item => (item.ProductType, item.ProductId, item.ProductName))
-        .Select(group => new ProductSales(
+        .Select(group => (
             group.Key.ProductType,
             group.Key.ProductId,
             group.Key.ProductName,
-            group.Sum(item => item.Quantity),
-            group.Sum(item => item.LineTotal)))
+            Quantity: group.Sum(item => item.Quantity),
+            Revenue: group.Sum(item => item.LineTotal)))
         .ToList();
     var customerSales = orders
         .GroupBy(order => order.CustomerName)
-        .Select(group => new CustomerSales(group.Key, group.Count(), group.Sum(order => order.Total)))
+        .Select(group => (CustomerName: group.Key, OrderCount: group.Count(), TotalSpent: group.Sum(order => order.Total)))
         .ToList();
 
     return new OrdersSummary(
         orders.Count,
-        revenue,
-        decimal.Round(revenue / orders.Count, 2),
-        orders.Min(order => order.CreatedAt),
-        orders.Max(order => order.CreatedAt),
-        [.. productSales.OrderByDescending(sales => sales.Quantity).ThenByDescending(sales => sales.Revenue).Take(TopProductCount)],
-        [.. productSales.OrderByDescending(sales => sales.Revenue).Take(TopProductCount)],
-        [.. customerSales.OrderByDescending(sales => sales.TotalSpent).Take(TopCustomerCount)],
+        ToolSupport.Money(revenue),
+        ToolSupport.Money(decimal.Round(revenue / orders.Count, 2)),
+        ToolSupport.Date(orders.Min(order => order.CreatedAt)),
+        ToolSupport.Date(orders.Max(order => order.CreatedAt)),
+        [.. productSales.OrderByDescending(sales => sales.Quantity).ThenByDescending(sales => sales.Revenue).Take(TopProductCount)
+            .Select(sales => new ProductSales(sales.ProductType, sales.ProductId, sales.ProductName, sales.Quantity, ToolSupport.Money(sales.Revenue)))],
+        [.. productSales.OrderByDescending(sales => sales.Revenue).Take(TopProductCount)
+            .Select(sales => new ProductSales(sales.ProductType, sales.ProductId, sales.ProductName, sales.Quantity, ToolSupport.Money(sales.Revenue)))],
+        [.. customerSales.OrderByDescending(sales => sales.TotalSpent).Take(TopCustomerCount)
+            .Select(sales => new CustomerSales(sales.CustomerName, sales.OrderCount, ToolSupport.Money(sales.TotalSpent)))],
         ScopeNote);
   }
+
+  static OrderView ToView(OrderDto order) => new(
+      order.Id,
+      order.CustomerName,
+      order.CustomerEmail,
+      order.Status,
+      ToolSupport.Date(order.CreatedAt),
+      ToolSupport.Date(order.PlacedAt),
+      ToolSupport.Money(order.Total),
+      [.. order.Items.Select(ToView)]);
+
+  static DraftOrderView ToView(DraftOrderDto draft) => new(
+      draft.Id,
+      draft.CustomerName,
+      draft.CustomerEmail,
+      ToolSupport.Date(draft.CreatedAt),
+      ToolSupport.Date(draft.ExpiresAt),
+      ToolSupport.Money(draft.Total),
+      [.. draft.Items.Select(ToView)]);
+
+  static OrderItemView ToView(OrderItemDto item) => new(
+      item.ProductType,
+      item.ProductId,
+      item.ProductName,
+      ToolSupport.Money(item.UnitPrice),
+      item.Quantity,
+      ToolSupport.Money(item.LineTotal));
 }
 
-public sealed record OrderList(int AvailableCount, IReadOnlyList<OrderDto> Orders, string Note);
+// Money and dates are pre-formatted strings ($1,234.56 and MM/dd/yyyy HH:mm UTC) - see ToolSupport.
+public sealed record OrderView(
+    int Id,
+    string CustomerName,
+    string? CustomerEmail,
+    string Status,
+    string CreatedAt,
+    string? PlacedAt,
+    string Total,
+    IReadOnlyList<OrderItemView> Items);
 
-public sealed record ProductSales(string ProductType, int ProductId, string ProductName, int Quantity, decimal Revenue);
+public sealed record DraftOrderView(
+    Guid Id,
+    string CustomerName,
+    string? CustomerEmail,
+    string CreatedAt,
+    string ExpiresAt,
+    string Total,
+    IReadOnlyList<OrderItemView> Items);
 
-public sealed record CustomerSales(string CustomerName, int OrderCount, decimal TotalSpent);
+public sealed record OrderItemView(string ProductType, int ProductId, string ProductName, string UnitPrice, int Quantity, string LineTotal);
+
+public sealed record OrderList(int AvailableCount, IReadOnlyList<OrderView> Orders, string Note);
+
+public sealed record ProductSales(string ProductType, int ProductId, string ProductName, int Quantity, string Revenue);
+
+public sealed record CustomerSales(string CustomerName, int OrderCount, string TotalSpent);
 
 public sealed record OrdersSummary(
     int OrderCount,
-    decimal TotalRevenue,
-    decimal AverageOrderValue,
-    DateTimeOffset? EarliestOrder,
-    DateTimeOffset? LatestOrder,
+    string TotalRevenue,
+    string AverageOrderValue,
+    string? EarliestOrder,
+    string? LatestOrder,
     IReadOnlyList<ProductSales> TopProductsByQuantity,
     IReadOnlyList<ProductSales> TopProductsByRevenue,
     IReadOnlyList<CustomerSales> TopCustomers,

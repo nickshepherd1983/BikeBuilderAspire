@@ -57,12 +57,15 @@ public static class AssistantMarkdown
   static string CellText(TableCell cell) =>
       string.Concat(cell.Descendants<LiteralInline>().Select(literal => literal.Content.ToString()));
 
-  // "1,234.50", "£899.99", "4.75 ★", "12%", "-3" all count; anything with letters does not.
+  // "1,234.50", "$899.99", "4.75 ★", "12%", "-3" all count; anything with letters does not,
+  // and neither do dates or times ("09/02/2026 14:30"), which stay left-aligned.
   static bool LooksNumeric(string text)
   {
+    if (text.Any(char.IsLetter) || text.Contains('/') || text.Contains(':'))
+      return false;
+
     var stripped = new string(text.Where(c => char.IsDigit(c) || c is '.' or '-' or '+').ToArray());
-    var hasLetters = text.Any(char.IsLetter);
-    return !hasLetters && stripped.Length > 0
+    return stripped.Length > 0
         && decimal.TryParse(stripped, NumberStyles.Number | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _);
   }
 }

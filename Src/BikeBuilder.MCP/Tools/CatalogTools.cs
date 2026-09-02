@@ -45,7 +45,7 @@ public sealed class CatalogTools(
       return new ComponentDetail(
           component.Id,
           component.Name,
-          ToolSupport.ParseMoney(component.Cost),
+          ToolSupport.Money(component.Cost),
           component.Sku,
           component.Manufacturer.ToString(),
           component.Description,
@@ -96,8 +96,8 @@ public sealed class CatalogTools(
       return new BikeBuildDetail(
           build.Id,
           build.Name,
-          build.Date.ToDateTimeOffset(),
-          ToolSupport.ParseMoney(build.Total),
+          ToolSupport.Date(build.Date.ToDateTimeOffset()),
+          ToolSupport.Money(build.Total),
           build.Description,
           [.. build.Components.Select(line => new BikeBuildComponentLine(line.ComponentId, line.ComponentName, line.Quantity))]);
     }
@@ -110,7 +110,7 @@ public sealed class CatalogTools(
   internal static ComponentSummary ToSummary(ComponentMessage component) => new(
       component.Id,
       component.Name,
-      ToolSupport.ParseMoney(component.Cost),
+      ToolSupport.Money(component.Cost),
       component.Sku,
       component.Manufacturer.ToString(),
       ToolSupport.Trim(component.Description),
@@ -119,8 +119,8 @@ public sealed class CatalogTools(
   internal static BikeBuildSummary ToSummary(BikeBuildMessage build) => new(
       build.Id,
       build.Name,
-      build.Date.ToDateTimeOffset(),
-      ToolSupport.ParseMoney(build.Total),
+      ToolSupport.Date(build.Date.ToDateTimeOffset()),
+      ToolSupport.Money(build.Total),
       ToolSupport.Trim(build.Description));
 
   static ComponentSortField ParseComponentSort(string? sortBy) => sortBy?.Trim().ToLowerInvariant() switch
@@ -144,16 +144,17 @@ public sealed class CatalogTools(
   };
 }
 
-public sealed record ComponentSummary(int Id, string Name, decimal Cost, string Sku, string Manufacturer, string Description, bool HasImage);
+// Money and dates are pre-formatted strings ($1,234.56 and MM/dd/yyyy HH:mm UTC) - see ToolSupport.
+public sealed record ComponentSummary(int Id, string Name, string Cost, string Sku, string Manufacturer, string Description, bool HasImage);
 
 public sealed record ComponentPage(int Page, int PageSize, int TotalCount, IReadOnlyList<ComponentSummary> Components);
 
-public sealed record ComponentDetail(int Id, string Name, decimal Cost, string Sku, string Manufacturer, string Description, bool HasImage, JsonElement? Information);
+public sealed record ComponentDetail(int Id, string Name, string Cost, string Sku, string Manufacturer, string Description, bool HasImage, JsonElement? Information);
 
-public sealed record BikeBuildSummary(int Id, string Name, DateTimeOffset Date, decimal Total, string Description);
+public sealed record BikeBuildSummary(int Id, string Name, string Date, string Total, string Description);
 
 public sealed record BikeBuildPage(int Page, int PageSize, int TotalCount, IReadOnlyList<BikeBuildSummary> BikeBuilds);
 
 public sealed record BikeBuildComponentLine(int ComponentId, string ComponentName, int Quantity);
 
-public sealed record BikeBuildDetail(int Id, string Name, DateTimeOffset Date, decimal Total, string Description, IReadOnlyList<BikeBuildComponentLine> Components);
+public sealed record BikeBuildDetail(int Id, string Name, string Date, string Total, string Description, IReadOnlyList<BikeBuildComponentLine> Components);

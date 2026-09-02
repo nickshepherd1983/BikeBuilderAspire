@@ -31,7 +31,10 @@ public sealed class ChatService(
       - Call describe_data first if you are unsure which tool fits the question.
       - Prefer tools that aggregate for you (orders_summary, top_rated_bike_builds, sorting by cost or
         total) over paging through long lists.
-      - Prices and totals are decimal amounts in the shop's currency; show them with two decimals.
+      - Money is in US dollars: always write it with a dollar sign and two decimals, for example
+        $23.99 or $1,234.50 - never a bare number and never another currency symbol.
+      - Dates and times are always written as MM/dd/yyyy HH:mm (for example 09/02/2026 14:30);
+        tools already return them that way - copy them, do not rephrase or convert them.
       - If a tool reports that orders require a signed-in role, tell the user that plainly.
       - Keep answers concise, and say when one is partial (for example, based on the 100 most
         recent orders).

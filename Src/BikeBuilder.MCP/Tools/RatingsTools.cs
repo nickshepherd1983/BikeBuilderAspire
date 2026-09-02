@@ -21,7 +21,7 @@ public sealed class RatingsTools(RatingsHttpClient _ratings, BikeBuildService.Bi
         bikeBuildId,
         ratings.Count,
         ratings.Count == 0 ? 0 : Math.Round(ratings.Average(rating => rating.Stars), 2),
-        [.. ratings.Select(rating => new Rating(rating.Stars, rating.Comment, rating.UserName, rating.CreatedAt))]);
+        [.. ratings.Select(rating => new Rating(rating.Stars, rating.Comment, rating.UserName, ToolSupport.Date(rating.CreatedAt)))]);
   }
 
   [McpServerTool(Name = "get_rating_summaries", ReadOnly = true, Idempotent = true),
@@ -85,10 +85,11 @@ public sealed class RatingsTools(RatingsHttpClient _ratings, BikeBuildService.Bi
       Math.Round(summary.AverageStars, 2));
 }
 
-public sealed record Rating(int Stars, string? Comment, string UserName, DateTimeOffset CreatedAt);
+// CreatedAt and Total are pre-formatted strings (MM/dd/yyyy HH:mm UTC and $1,234.56) - see ToolSupport.
+public sealed record Rating(int Stars, string? Comment, string UserName, string CreatedAt);
 
 public sealed record BikeBuildRatings(int BikeBuildId, int Count, double AverageStars, IReadOnlyList<Rating> Ratings);
 
 public sealed record RatingSummary(int BikeBuildId, int Count, double AverageStars);
 
-public sealed record RatedBikeBuild(int Id, string Name, decimal Total, int RatingCount, double AverageStars);
+public sealed record RatedBikeBuild(int Id, string Name, string Total, int RatingCount, double AverageStars);
