@@ -8,7 +8,10 @@
     }
     else
     {
-        <MudPaper Elevation="8" Class="assistant-panel">
+        @* A plain element rather than MudPaper so the resize script gets an element reference. *@
+        <div class="assistant-panel mud-paper mud-elevation-8" @ref="_panelElement">
+            <div class="assistant-resize-handle" role="separator" aria-label="Resize assistant"
+                 title="Drag to resize; double-click to reset" @ref="_resizeHandleElement"></div>
             <div class="assistant-header">
                 <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="mr-2" />
                 <MudText Typo="Typo.subtitle1" Class="flex-grow-1">Assistant</MudText>
@@ -112,6 +115,6 @@
                                    Disabled="@(_busy || string.IsNullOrWhiteSpace(_input))" OnClick="() => SendAsync(_input)" />
                 </MudStack>
             </div>
-        </MudPaper>
+        </div>
     }
 </div>

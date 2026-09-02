@@ -78,6 +78,7 @@ h1:focus {
 }
 
 .assistant-panel {
+    position: relative;
     width: 480px;
     max-width: calc(100vw - 32px);
     height: 560px;
@@ -88,10 +89,39 @@ h1:focus {
     border-radius: 12px;
 }
 
+    /* Drag handle in the top-right corner (the panel grows up and to the right from its
+       bottom-left anchor); the header keeps its buttons clear of it. */
+    .assistant-panel .assistant-resize-handle {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 22px;
+        height: 22px;
+        cursor: nesw-resize;
+        touch-action: none;
+        z-index: 1;
+    }
+
+        .assistant-panel .assistant-resize-handle::before {
+            content: "";
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 9px;
+            height: 9px;
+            border-top: 2px solid rgba(255, 255, 255, .75);
+            border-right: 2px solid rgba(255, 255, 255, .75);
+            border-radius: 1px;
+        }
+
+    .assistant-panel.assistant-resizing {
+        user-select: none;
+    }
+
     .assistant-panel .assistant-header {
         display: flex;
         align-items: center;
-        padding: 8px 8px 8px 16px;
+        padding: 8px 26px 8px 16px;
         background-color: #00263A;
         color: #fff;
     }

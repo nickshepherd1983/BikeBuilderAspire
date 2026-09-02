@@ -59,6 +59,21 @@ public class ChatSmokeTests(BikeBuilderAppFixture fixture)
     await Expect(sendButton).ToBeVisibleAsync();
     await Expect(page.Locator("#blazor-error-ui")).ToBeHiddenAsync();
 
+    // Drag the top-right handle up and to the right: the panel should grow both ways. The
+    // upward drag is small because the panel caps its height at the viewport minus 140px, and
+    // the recording browser is only 720px tall - the default 560px leaves 20px of headroom.
+    var panel = page.Locator(".assistant-panel");
+    var before = await panel.BoundingBoxAsync() ?? throw new InvalidOperationException("The assistant panel has no bounding box.");
+    var handle = await page.GetByRole(AriaRole.Separator, new() { Name = "Resize assistant" }).BoundingBoxAsync()
+        ?? throw new InvalidOperationException("The resize handle has no bounding box.");
+    await page.Mouse.MoveAsync(handle.X + handle.Width / 2, handle.Y + handle.Height / 2);
+    await page.Mouse.DownAsync();
+    await page.Mouse.MoveAsync(handle.X + handle.Width / 2 + 120, handle.Y + handle.Height / 2 - 15, new() { Steps = 8 });
+    await page.Mouse.UpAsync();
+    var after = await panel.BoundingBoxAsync() ?? throw new InvalidOperationException("The assistant panel has no bounding box after resizing.");
+    Assert.True(after.Width > before.Width + 100, $"Width went from {before.Width} to {after.Width}.");
+    Assert.True(after.Height > before.Height + 10, $"Height went from {before.Height} to {after.Height}.");
+
     // A developer machine with Ollama running gets the full loop exercised too: ask the first
     // suggestion and wait for an answer bubble that isn't the "could not reach" failure. Wide
     // timeout - a cold local model loads before it answers, and the tool calls add round trips.

@@ -27,17 +27,22 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
   string _input = "";
   bool _busy;
 
-  // The transcript scrolls to its newest message with a tween from the collocated JS module.
-  // The flag is raised by whatever adds a message and consumed by the render that shows it.
+  // The collocated JS module owns two things: the transcript's scroll tween (the flag is
+  // raised by whatever adds a message and consumed by the render that shows it) and the
+  // panel's resize handle, wired once per opening because the panel element is recreated.
   ElementReference _transcriptElement;
-  IJSObjectReference? _scrollModule;
+  ElementReference _panelElement;
+  ElementReference _resizeHandleElement;
+  IJSObjectReference? _module;
   bool _scrollPending;
+  bool _panelWired;
 
   // The status check waits for the first open: most page views never touch the assistant.
   async Task ToggleOpen()
   {
     _open = !_open;
     _scrollPending = _open && _transcript.Count > 0;
+    _panelWired = false;
     if (_open && _status is null && !_statusFailed)
       await LoadStatusAsync();
   }
@@ -99,18 +104,29 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
 
   protected override async Task OnAfterRenderAsync(bool firstRender)
   {
-    if (!_scrollPending || !_open)
+    if (!_open || (_panelWired && !_scrollPending))
       return;
 
-    _scrollPending = false;
     try
     {
-      _scrollModule ??= await _js.InvokeAsync<IJSObjectReference>("import", "./Layout/AssistantWidget.razor.js");
-      await _scrollModule.InvokeVoidAsync("scrollToBottom", _transcriptElement);
+      _module ??= await _js.InvokeAsync<IJSObjectReference>("import", "./Layout/AssistantWidget.razor.js");
+
+      if (!_panelWired)
+      {
+        _panelWired = true;
+        await _module.InvokeVoidAsync("initPanel", _panelElement, _resizeHandleElement);
+      }
+
+      if (_scrollPending)
+      {
+        _scrollPending = false;
+        await _module.InvokeVoidAsync("scrollToBottom", _transcriptElement);
+      }
     }
     catch (JSException)
     {
-      // Scrolling is a nicety; a missing module or a torn-down page must not break the chat.
+      // Resizing and scrolling are niceties; a missing module or a torn-down page must not
+      // break the chat.
     }
   }
 
@@ -121,11 +137,11 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
     await _cts.CancelAsync();
     _cts.Dispose();
 
-    if (_scrollModule is not null)
+    if (_module is not null)
     {
       try
       {
-        await _scrollModule.DisposeAsync();
+        await _module.DisposeAsync();
       }
       catch (JSException)
       {
