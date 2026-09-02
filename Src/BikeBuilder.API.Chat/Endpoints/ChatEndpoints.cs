@@ -7,7 +7,10 @@ namespace BikeBuilder.API.Chat.Endpoints;
 public static class ChatEndpoints
 {
   const int MaxTurns = 40;
-  const int MaxTurnLength = 4000;
+  // The user's questions are typed; answers carry tables and run long. Both bounds are
+  // abuse guards only - ChatService trims history to what the model should see.
+  const int MaxUserTurnLength = 4000;
+  const int MaxAssistantTurnLength = 40_000;
 
   public static void MapChatEndpoints(this IEndpointRouteBuilder app)
   {
@@ -24,9 +27,11 @@ public static class ChatEndpoints
     {
       if (request.Messages is not { Count: > 0 and <= MaxTurns })
         return Results.BadRequest($"messages must hold between 1 and {MaxTurns} turns.");
-      if (request.Messages.Any(turn => string.IsNullOrWhiteSpace(turn.Content) || turn.Content.Length > MaxTurnLength))
-        return Results.BadRequest($"Each turn needs content of at most {MaxTurnLength} characters.");
-      if (!string.Equals(request.Messages[^1].Role, "user", StringComparison.OrdinalIgnoreCase))
+      if (request.Messages.Any(turn => string.IsNullOrWhiteSpace(turn.Content)))
+        return Results.BadRequest("Every turn needs some content.");
+      if (request.Messages.Any(turn => turn.Content.Length > (turn.IsAssistant ? MaxAssistantTurnLength : MaxUserTurnLength)))
+        return Results.BadRequest($"A question can be at most {MaxUserTurnLength} characters and a previous answer at most {MaxAssistantTurnLength}.");
+      if (request.Messages[^1].IsAssistant)
         return Results.BadRequest("The last turn must be the user's question.");
 
       try

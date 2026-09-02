@@ -16,6 +16,8 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
     "Summarise the most recent orders."
   ];
 
+  const int MaxResentAnswerLength = 2_500;
+
   // Cancels an in-flight question when the layout is torn down (sign-out) - a local model
   // can take a while, and nobody is left to read the answer.
   readonly CancellationTokenSource _cts = new();
@@ -77,10 +79,15 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
     _scrollPending = true;
     try
     {
-      // Failed turns are shown but not resent - the model never saw them.
+      // Failed turns are shown but not resent - the model never saw them. Earlier answers are
+      // sent shortened: the service trims history anyway, and a long table is dead weight on
+      // the wire. The transcript on screen keeps the full text.
       var history = _transcript
           .Where(bubble => !bubble.IsError)
-          .Select(bubble => new ChatTurnDto(bubble.Role, bubble.Content))
+          .Select(bubble => new ChatTurnDto(bubble.Role,
+              bubble.IsUser || bubble.Content.Length <= MaxResentAnswerLength
+                  ? bubble.Content
+                  : string.Concat(bubble.Content.AsSpan(0, MaxResentAnswerLength), "\n\n[earlier answer shortened]")))
           .ToList();
       var reply = await _chatClient.AskAsync(history, _cts.Token);
       _transcript.Add(ChatBubble.Assistant(reply));

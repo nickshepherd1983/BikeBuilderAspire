@@ -16,9 +16,14 @@ public sealed class ChatService(
     McpToolsFactory _mcp,
     ILogger<ChatService> _logger)
 {
-  // The client resends the whole transcript; older turns are dropped to keep the prompt small
-  // for a local model, and tool results are cut to a preview for the trace.
+  // The client resends the whole transcript. A local model has a finite context and slows
+  // down with every token, so history is trimmed here: earlier answers (which carry whole
+  // tables) are shortened, the oldest turns are dropped past a character budget, and at
+  // most this many turns are kept. Tool results are cut to a preview for the trace.
   const int MaxHistoryTurns = 20;
+  const int MaxHistoryCharacters = 24_000;
+  const int MaxEarlierAnswerLength = 2_500;
+  const string ShortenedMarker = "\n\n[earlier answer shortened]";
   const int ResultPreviewLength = 500;
 
   const string SystemPrompt = """
@@ -58,11 +63,7 @@ public sealed class ChatService(
     await using var session = await ConnectMcpAsync(bearerToken, cancellationToken);
 
     var messages = new List<ChatMessage> { new(ChatRole.System, SystemPrompt) };
-    foreach (var turn in turns.TakeLast(MaxHistoryTurns))
-    {
-      var role = string.Equals(turn.Role, "assistant", StringComparison.OrdinalIgnoreCase) ? ChatRole.Assistant : ChatRole.User;
-      messages.Add(new ChatMessage(role, turn.Content));
-    }
+    messages.AddRange(TrimHistory(turns));
 
     var chatOptions = new ChatOptions
     {
@@ -141,6 +142,32 @@ public sealed class ChatService(
     {
       throw new ChatUnavailableException($"Could not reach the MCP server at {_mcp.Endpoint} ({ex.Message}).", ex);
     }
+  }
+
+  // Newest turns first so the current question is always whole; earlier answers are cut to a
+  // few paragraphs (the model needs the gist, not the table), and the walk stops once the
+  // budget or the turn cap is spent. The result is put back in conversation order.
+  static List<ChatMessage> TrimHistory(IReadOnlyList<ChatTurn> turns)
+  {
+    var kept = new List<ChatMessage>();
+    var characters = 0;
+    for (var i = turns.Count - 1; i >= 0 && kept.Count < MaxHistoryTurns; i--)
+    {
+      var turn = turns[i];
+      var isCurrentQuestion = i == turns.Count - 1;
+      var content = turn.IsAssistant && turn.Content.Length > MaxEarlierAnswerLength
+          ? string.Concat(turn.Content.AsSpan(0, MaxEarlierAnswerLength), ShortenedMarker)
+          : turn.Content;
+
+      if (!isCurrentQuestion && characters + content.Length > MaxHistoryCharacters)
+        break;
+
+      characters += content.Length;
+      kept.Add(new ChatMessage(turn.IsAssistant ? ChatRole.Assistant : ChatRole.User, content));
+    }
+
+    kept.Reverse();
+    return kept;
   }
 
   // The pipeline appends every intermediate message (tool calls, tool results, the final

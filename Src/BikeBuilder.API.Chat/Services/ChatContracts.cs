@@ -2,7 +2,10 @@ namespace BikeBuilder.API.Chat.Services;
 
 // Wire shapes shared with the admin app's ChatClient. The client keeps the transcript and
 // sends it whole each time - the service holds no conversation state.
-public sealed record ChatTurn(string Role, string Content);
+public sealed record ChatTurn(string Role, string Content)
+{
+  public bool IsAssistant => string.Equals(Role, "assistant", StringComparison.OrdinalIgnoreCase);
+}
 
 public sealed record AskRequest(List<ChatTurn> Messages);
 

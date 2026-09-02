@@ -101,5 +101,14 @@ public class ChatSmokeTests(BikeBuilderAppFixture fixture)
     var resultsDir = Path.Combine(AppContext.BaseDirectory, "TestResults");
     Directory.CreateDirectory(resultsDir);
     await page.Locator(".assistant-panel").ScreenshotAsync(new() { Path = Path.Combine(resultsDir, "chat-answer.png") });
+
+    // A follow-up that only makes sense with the first answer in context: the whole
+    // transcript (table answer included) is resent, trimmed by the service, and must be
+    // accepted rather than bounced for its length.
+    await page.GetByLabel("Ask a question").FillAsync("Which manufacturer made the first one in that list?");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Send" }).ClickAsync();
+    await Expect(answer).ToHaveCountAsync(2, new() { Timeout = 240_000 });
+    await Expect(answer.Nth(1)).Not.ToContainTextAsync("at most");
+    await Expect(answer.Nth(1)).Not.ToContainTextAsync("Could not reach");
   }
 }
