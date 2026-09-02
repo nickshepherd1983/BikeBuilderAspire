@@ -5,8 +5,8 @@
 // NOT free: Developer is the cheapest tier that supports self-hosted gateways (~$50/month,
 // no SLA). Consumption cannot host them, which is the whole reason this tier is used.
 //
-// The route contract here (orders and ratings under a path prefix, the catalog api on the
-// root path so gRPC-Web method paths need no prefix) is mirrored by the YARP fallback in
+// The route contract here (orders, ratings and chat under a path prefix, the catalog api on
+// the root path so gRPC-Web method paths need no prefix) is mirrored by the YARP fallback in
 // Src/BikeBuilder.Gateway/appsettings.json; keep the two in sync.
 targetScope = 'resourceGroup'
 
@@ -26,6 +26,12 @@ param ordersBackendUrl string
 
 @description('Cloud backend for the ratings API (the Functions app URL - clients append api/...).')
 param ratingsBackendUrl string
+
+// The chat host is not provisioned in Azure (its model runs on the developer machine), so the
+// cloud backend is a placeholder; the route exists so the self-hosted gateways below carry the
+// same /chat prefix the YARP stand-in serves locally.
+@description('Cloud backend for the assistant chat host. Not deployed yet - placeholder by default.')
+param chatBackendUrl string = 'https://chat.not-deployed.invalid'
 
 resource apim 'Microsoft.ApiManagement/service@2024-05-01' = {
   name: name
@@ -67,6 +73,13 @@ var apis = [
     serviceUrl: ratingsBackendUrl
     localDevUrl: 'http://host.docker.internal:7071'
     localTestUrl: 'http://host.docker.internal:18500'
+  }
+  {
+    name: 'chat'
+    path: 'chat'
+    serviceUrl: chatBackendUrl
+    localDevUrl: 'http://host.docker.internal:7701'
+    localTestUrl: 'http://host.docker.internal:18900'
   }
 ]
 

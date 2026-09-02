@@ -13,12 +13,14 @@ guest-checkout storefront, and watch activity land in real time on a public site
 
 | Project | What it is |
 | --- | --- |
-| `BikeBuilder.AppHost` | .NET Aspire app host — the one thing you run: orchestrates SQL Server, Redis, Azurite, the Service Bus and Cosmos emulators, and all five apps |
+| `BikeBuilder.AppHost` | .NET Aspire app host — the one thing you run: orchestrates SQL Server, Redis, Azurite, the Service Bus and Cosmos emulators, and all the apps |
 | `BikeBuilder.ServiceDefaults` | Shared Aspire service defaults: OpenTelemetry (traces, metrics, logs), health checks, service discovery |
-| `BikeBuilder.Web.Admin` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service; signed-in users get live order toasts, a back-office Orders view, and an In Process view of carts still being filled in |
+| `BikeBuilder.Web.Admin` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service; signed-in users get live order toasts, a back-office Orders view, an In Process view of carts still being filled in, and (Admins) an Assistant page that answers free-text questions about the data |
 | `BikeBuilder.API` | ASP.NET Core gRPC API (EF Core + SQL Server), component image upload to Azure Blob Storage, publishes events to Service Bus; catalog reads are anonymous so the storefront can browse |
 | `BikeBuilder.API.Orders` | HotChocolate GraphQL orders microservice, a discrete bounded context: unsubmitted carts live in Redis under a TTL, placed orders in its own SQL Server database. Snapshots catalog prices via gRPC-Web and publishes OrderPlaced events to Service Bus |
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
+| `BikeBuilder.MCP` | Model Context Protocol server (Streamable HTTP at `/mcp`) exposing read-only tools over components, bike builds, orders and ratings. Owns no data — it calls the same three services the web apps do and forwards the caller's token to the role-gated order queries. Usable from Claude Code, VS Code, or the chat host below |
+| `BikeBuilder.API.Chat` | The admin app's assistant backend: runs a tool-calling loop (Microsoft.Extensions.AI + OllamaSharp) against a model served by the Ollama installed on the dev machine, with the MCP server's tools. Admin-only, reached through the gateway's `/chat` prefix |
 | `BikeBuilder.API.Notifications` | **Deploy-only — not part of the local AppHost topology.** Azure Functions fan-out that replaces the storefront's in-process SignalR hub when deployed, where scale-to-zero forbids an always-on consumer: a Service Bus trigger pushing to Azure SignalR Service in Serverless mode |
 | `BikeBuilder.Web.Public` | Blazor Web App public site rendering InteractiveAuto — the first visit runs on a server circuit while the WebAssembly runtime downloads, later visits run in the browser: the guest-checkout storefront (StrawberryShake GraphQL client) as its landing page, with live activity toasts (Service Bus → SignalR) owned by the layout so they follow you across every page |
 | `BikeBuilder.Web.Public.Client` | The storefront's WebAssembly half: a thin composition root that wires the shared storefront components to browser services (localStorage, origin-relative URLs) once pages run client-side |
@@ -41,6 +43,7 @@ flowchart TB
     end
 
     mobile["BikeBuilder.MobileApp<br/>MAUI Blazor Hybrid<br/>Android · Windows"]
+    ollama["Ollama · :11434<br/>installed on the dev machine"]
 
     subgraph apps["Apps — orchestrated by the AppHost"]
         gateway["gateway · :7500<br/>APIM self-hosted container<br/>or YARP fallback"]
@@ -48,6 +51,8 @@ flowchart TB
         orders["orders<br/>GraphQL · :7400"]
         api["api<br/>gRPC catalog · :7100"]
         ratings["ratings<br/>Functions · :7071"]
+        chat["chat<br/>assistant · :7700"]
+        mcp["mcp<br/>MCP tools · :7600"]
     end
 
     subgraph backing["Backing services — containers"]
@@ -68,6 +73,13 @@ flowchart TB
     gateway -->|/ catch-all| api
     gateway -->|/orders| orders
     gateway -->|/ratings| ratings
+    gateway -->|/chat| chat
+
+    chat -->|completions| ollama
+    chat -->|MCP, token forwarded| mcp
+    mcp -->|gRPC-Web| api
+    mcp -->|GraphQL| orders
+    mcp -->|REST| ratings
 
     webpublic -->|catalog + image proxy| api
     webpublic -->|GraphQL| orders
@@ -93,12 +105,13 @@ snapshots prices from `api` rather than reaching into the catalog database — t
 bounded contexts. The `dataseeder` app is left out; it touches SQL and Cosmos directly and only
 runs when you start it by hand.
 
-All browser traffic to the three APIs goes through the **gateway** origin (`:7500` in dev,
+All browser traffic to the APIs goes through the **gateway** origin (`:7500` in dev,
 `:18700` in tests): the real Azure API Management self-hosted gateway container when the
 `Apim:*` user secrets are configured (see [`infra/README.md`](infra/README.md)), otherwise the
 `BikeBuilder.Gateway` YARP stand-in with the same routes. The catalog api owns the root
 catch-all because gRPC-Web method paths cannot carry a prefix. Server-to-server calls
-(`orders` → `api`, `web-public` → `api`/`orders`) and the SignalR hub stay direct.
+(`orders` → `api`, `web-public` → `api`/`orders`, `chat` → `mcp` → everything) and the
+SignalR hub stay direct; the MCP server is not on the gateway at all.
 
 ### Project references
 
@@ -115,6 +128,8 @@ flowchart LR
         orders["BikeBuilder.API.Orders"]
         ratings["BikeBuilder.API.Ratings"]
         notifications["BikeBuilder.API.Notifications<br/>deploy-only"]
+        mcp["BikeBuilder.MCP"]
+        chat["BikeBuilder.API.Chat"]
     end
 
     subgraph frontends["Front ends"]
@@ -136,6 +151,8 @@ flowchart LR
     orders --> shared
     ratings --> shared
     notifications --> shared
+    mcp --> shared
+    chat --> shared
     webpublic --> shared
     gateway --> defaults
     web --> contracts
@@ -152,6 +169,8 @@ flowchart LR
     apphost --> webpublic
     apphost --> seeder
     apphost --> gateway
+    apphost --> mcp
+    apphost --> chat
     tests --> apphost
     tests --> api
     tests --> seeder
@@ -159,10 +178,11 @@ flowchart LR
     orders -.-> api
     web -.-> api
     storefront -.-> api
+    mcp -.-> api
 ```
 
 A solid arrow means "references"; an arrow into the Shared box means the project references
-both shared projects. Dashed arrows are **not** project references — those three compile
+both shared projects. Dashed arrows are **not** project references — those four compile
 `BikeBuilder.API`'s `.proto` files as gRPC *clients* through linked `<Protobuf>` items.
 
 Three absences are deliberate. `BikeBuilder.Web.Admin` references `Contracts` but not `ServiceDefaults`
@@ -304,6 +324,58 @@ in Redis with a countdown to expiry, refreshing itself as they come and go.
 
 The orders GraphQL endpoint (with the Nitro IDE in dev) is at https://localhost:7400/graphql.
 
+## The assistant (local AI)
+
+`/chat` in the admin app (Admin role) answers free-text questions — "which bike build has the
+best average rating?", "what sells best?", "which forks have more than 140 mm of travel?" —
+by letting a language model call tools against the live data. Every reply shows the tools it
+called and what came back, so answers stay checkable.
+
+Two pieces make it work, both orchestrated by the AppHost:
+
+- **`BikeBuilder.MCP`** is a [Model Context Protocol](https://modelcontextprotocol.io) server
+  at http://localhost:7601/mcp with read-only tools: `search_components`, `get_component`,
+  `search_bike_builds`, `get_bike_build`, `list_orders`, `get_order`, `list_draft_orders`,
+  `orders_summary`, `list_ratings`, `get_rating_summaries`, `top_rated_bike_builds`, and a
+  `describe_data` orientation. It owns no database — it calls `api` (gRPC-Web), `orders`
+  (GraphQL) and `ratings` (REST) like the web apps do, and forwards the caller's bearer token so
+  the role-gated order queries apply to the actual user.
+- **`BikeBuilder.API.Chat`** runs the tool-calling loop with Microsoft.Extensions.AI and
+  OllamaSharp, connecting to the MCP server as the signed-in user, and serves the page's
+  `/api/chat` endpoints through the gateway's `/chat` prefix.
+
+The model runs in **Ollama on your machine** — nothing is sent to a cloud service. Install
+[Ollama](https://ollama.com), then pull the default model:
+
+```powershell
+ollama pull qwen3.5
+```
+
+`qwen3.5` (~10B parameters, native tool calling) is the default; the endpoint and model are the
+`ollama` connection string in `Src/BikeBuilder.AppHost/appsettings.json`, overridable per
+machine with user secrets:
+
+```powershell
+dotnet user-secrets set ConnectionStrings:ollama "Endpoint=http://localhost:11434;Model=qwen3.5:35b-a3b" --project Src/BikeBuilder.AppHost
+```
+
+Any Ollama model with the `tools` capability works (`ollama show <model>` lists them);
+`qwen3.5:35b-a3b` (a mixture-of-experts model with 3B active parameters) or `gpt-oss:20b` are
+good upgrades on a machine with 32 GB+ of GPU-addressable memory. The chat host's `Ollama:Think`
+setting turns a reasoning model's "thinking" on (off by default — it multiplies latency on
+lookup questions). Nothing in the topology needs Ollama to start: the page shows what is
+missing, and CI runs the full stack with no model at all.
+
+To use the MCP server from an IDE instead of the chat page, point any MCP client at it while
+the AppHost is running — anonymous access is on in Development (`Mcp:AllowAnonymous`), so the
+order tools answer "sign in required" from there:
+
+```powershell
+claude mcp add --transport http bikebuilder http://localhost:7601/mcp
+```
+
+or in VS Code's `mcp.json`: `{ "servers": { "bikebuilder": { "type": "http", "url": "http://localhost:7601/mcp" } } }`.
+
 ## Deploying to Azure
 
 The `infra/` folder provisions the whole system into a single subscription, staying inside
@@ -325,11 +397,13 @@ the service holds the client connections and nothing has to stay awake.
 
 ## Telemetry
 
-Every server app (API, Orders, Web.Public, Ratings) exports OpenTelemetry traces, metrics, and logs
+Every server app (API, Orders, Web.Public, Ratings, MCP, Chat) exports OpenTelemetry traces, metrics, and logs
 over OTLP to the Aspire dashboard — open the Traces view to follow a single request across
 API → SQL/Blob → Service Bus → Web.Public → SignalR broadcast (the Service Bus consumer may
 appear as a linked trace reference rather than a nested span — that's the messaging
-convention, click through it). Telemetry is in-memory and resets with the AppHost.
+convention, click through it). An assistant question reads as one trace too: chat → the
+model calls (GenAI spans) → each MCP tool call → the service it queried. Telemetry is
+in-memory and resets with the AppHost.
 
 ## Tests
 
@@ -337,15 +411,18 @@ convention, click through it). Telemetry is in-memory and resets with the AppHos
 dotnet test Src/BikeBuilder.Test.Integration
 ```
 
-Three end-to-end tests cover the whole journey: one logs in, creates a component with an image,
+Four end-to-end tests cover the whole journey: one logs in, creates a component with an image,
 builds a bike, rates it, and verifies the component, build and rating toasts land live on the
 public site; another buys from the storefront as a guest, checks the open cart shows on the
 web app's In Process page and is gone once processed, and verifies the order toast on both the
 public site and the signed-in web app; the third exercises the role system — as the Admin it
 creates an OrderViewer user through the Admin page, signs in as that user in a fresh browser
 context, and checks the nav is trimmed to the order sections and a direct hit on /components
-lands on the "Not authorized" page. (The stub user `testuser` carries the Admin role, which is
-why the other tests can touch every surface.) Requires Docker and the
+lands on the "Not authorized" page; the fourth opens the Assistant page, checks it renders and
+reaches its backend, and — only where Ollama is running, so never on CI — asks a question and
+waits for the model's answer. (The stub user
+`testuser` carries the Admin role, which is why the other tests can touch every surface.)
+Requires Docker and the
 Azure Functions Core Tools. The Aspire testing host (`Aspire.Hosting.Testing`) runs the same
 AppHost in test mode: fixed 18xxx ports, a stub OIDC issuer instead of Auth0, and
 session-scoped containers that are torn down with the fixture. Debugging the test from Visual

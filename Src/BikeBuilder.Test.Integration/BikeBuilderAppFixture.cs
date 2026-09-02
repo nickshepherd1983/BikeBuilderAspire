@@ -29,6 +29,8 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
   public string WebPublicBaseAddress => "http://127.0.0.1:18300";
   public string RatingsBaseAddress => "http://127.0.0.1:18500";
   public string OrdersBaseAddress => "http://127.0.0.1:18600";
+  public string McpBaseAddress => "http://127.0.0.1:18800";
+  public string ChatBaseAddress => "http://127.0.0.1:18900";
   // The browsers reach api/orders/ratings through this origin (the APIM self-hosted gateway
   // when Apim:* user secrets are configured, the YARP fallback otherwise); the direct
   // addresses above remain for seeding and diagnostics.
@@ -48,7 +50,7 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
     // half-updates the build (MSB3027 file locks) and leaves mixed-generation static
     // web assets - the WASM app then 404s its own fingerprinted _framework files and
     // every test times out on the first navigation. Fail fast with the actual reason.
-    var conflicting = new[] { "BikeBuilder.AppHost", "BikeBuilder.API", "BikeBuilder.API.Orders", "BikeBuilder.Gateway", "BikeBuilder.Web.Admin", "BikeBuilder.Web.Public" }
+    var conflicting = new[] { "BikeBuilder.AppHost", "BikeBuilder.API", "BikeBuilder.API.Orders", "BikeBuilder.API.Chat", "BikeBuilder.MCP", "BikeBuilder.Gateway", "BikeBuilder.Web.Admin", "BikeBuilder.Web.Public" }
         .SelectMany(Process.GetProcessesByName)
         .Select(process => $"{process.ProcessName} (pid {process.Id})")
         .ToList();
@@ -92,6 +94,10 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
           notifications.WaitForResourceHealthyAsync("ratings", cts.Token),
           notifications.WaitForResourceHealthyAsync("web-admin", cts.Token),
           notifications.WaitForResourceHealthyAsync("web-public", cts.Token),
+          // The assistant pair: healthy without any model installed (their probes never
+          // touch Ollama), so the chat smoke test only asserts on page structure.
+          notifications.WaitForResourceHealthyAsync("mcp", cts.Token),
+          notifications.WaitForResourceHealthyAsync("chat", cts.Token),
           // Same resource name in both gateway modes; a healthy APIM container means it
           // authenticated to the cloud config endpoint and is serving the API config.
           notifications.WaitForResourceHealthyAsync("gateway", cts.Token));

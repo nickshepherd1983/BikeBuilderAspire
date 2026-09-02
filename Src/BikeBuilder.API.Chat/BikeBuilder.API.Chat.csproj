@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <!-- IChatClient pipeline (function invocation, OpenTelemetry) over OllamaSharp's client;
+         the MCP client turns the BikeBuilder.MCP tools into AIFunctions for that pipeline. -->
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="OllamaSharp" />
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BikeBuilder.Contracts\BikeBuilder.Contracts.csproj" />
+    <ProjectReference Include="..\BikeBuilder.ServiceDefaults\BikeBuilder.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

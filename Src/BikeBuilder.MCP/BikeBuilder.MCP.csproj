@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same proto-sharing pattern as BikeBuilder.API.Orders: compile the API's protos as clients
+         for the catalog reads the tools expose. -->
+    <Protobuf Include="..\BikeBuilder.API\Protos\component.proto" GrpcServices="Client" Link="Protos\component.proto" />
+    <Protobuf Include="..\BikeBuilder.API\Protos\bikebuild.proto" GrpcServices="Client" Link="Protos\bikebuild.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+    <PackageReference Include="Grpc.Net.Client.Web" />
+    <PackageReference Include="Grpc.Tools">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <!-- The MCP server itself: Streamable HTTP transport over ASP.NET Core. -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BikeBuilder.Contracts\BikeBuilder.Contracts.csproj" />
+    <ProjectReference Include="..\BikeBuilder.ServiceDefaults\BikeBuilder.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

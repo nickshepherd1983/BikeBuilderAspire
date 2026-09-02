@@ -67,6 +67,30 @@ h1:focus {
         color: #CF0030 !important;
     }
 
+/* Assistant transcript: the user's questions in the brand red on the right, answers on a
+   soft grey panel on the left; tool output is monospace and wraps hard so a JSON blob can't
+   widen the page. */
+.chat-bubble {
+    max-width: 80%;
+    border-radius: 12px;
+}
+
+.chat-bubble-user {
+    background-color: #CF0030;
+    color: #fff;
+}
+
+.chat-bubble-assistant {
+    background-color: #F2F5F7;
+    color: #00263A;
+}
+
+.chat-tool-result {
+    font-family: Consolas, 'Courier New', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
 #blazor-error-ui {
     color-scheme: light only;
     background: lightyellow;

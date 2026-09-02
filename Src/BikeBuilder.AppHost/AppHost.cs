@@ -250,14 +250,64 @@ webPublic.WithHttpHealthCheck("/");
 WithStorefrontOrigins(api);
 WithStorefrontOrigins(orders);
 
+// --- AI assistant: MCP server + chat host --------------------------------------------------
+
+// The model runs in the Ollama installed on the developer machine (GPU-accelerated there),
+// not in a container, so it is modelled as a connection string - Endpoint and Model, from
+// this project's appsettings.json or user secrets - rather than a hosted resource.
+var ollama = builder.AddConnectionString("ollama");
+
+// Read-only MCP tools over the catalog, orders and ratings. Owns no data: it calls the same
+// three services the web apps do (api over gRPC-Web, orders GraphQL, ratings HTTP), and
+// validates the same tokens so it can forward the caller's to the role-gated order queries.
+var mcp = builder.AddProject<Projects.BikeBuilder_MCP>("mcp",
+        options => options.ExcludeLaunchProfile = isTest)
+    .WithReference(api).WaitFor(api)
+    .WithReference(orders).WaitFor(orders)
+    .WithReference(ratings).WaitFor(ratings)
+    .WithEnvironment("Auth0__Authority", isTest ? TestOidcIssuer : Auth0Authority)
+    .WithEnvironment("Auth0__Audience", isTest ? OidcAudience : Auth0Audience);
+if (isTest)
+{
+  mcp.WithHttpEndpoint(port: 18800)
+      .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+      .WithEnvironment("Auth0__RequireHttpsMetadata", "false")
+      .WithEnvironment("Auth0__RoleClaim", "role")
+      // Development turns anonymous access on for local IDE clients; tests exercise the
+      // authenticated path the chat host uses.
+      .WithEnvironment("Mcp__AllowAnonymous", "false")
+      .WaitFor(oidc!);
+}
+mcp.WithHttpHealthCheck("/");
+
+// The admin app's assistant backend: Ollama + the MCP tools behind an Admin-only endpoint the
+// browser reaches through the gateway's /chat prefix. Its probe never touches Ollama, so the
+// topology (and CI) is healthy with no model installed - the page explains what's missing.
+var chat = builder.AddProject<Projects.BikeBuilder_API_Chat>("chat",
+        options => options.ExcludeLaunchProfile = isTest)
+    .WithReference(mcp).WaitFor(mcp)
+    .WithReference(ollama)
+    .WithEnvironment("Auth0__Authority", isTest ? TestOidcIssuer : Auth0Authority)
+    .WithEnvironment("Auth0__Audience", isTest ? OidcAudience : Auth0Audience);
+WithWebAppOrigins(chat);
+if (isTest)
+{
+  chat.WithHttpEndpoint(port: 18900)
+      .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+      .WithEnvironment("Auth0__RequireHttpsMetadata", "false")
+      .WithEnvironment("Auth0__RoleClaim", "role")
+      .WaitFor(oidc!);
+}
+chat.WithHttpHealthCheck("/");
+
 // --- API gateway ------------------------------------------------------------------------
 // One constant browser-facing origin (dev 7500 / test 18700) that the WASM apps' baked
 // wwwroot/appsettings*.json base addresses point at unconditionally. It is served by either
 // the real APIM self-hosted gateway container (when the Apim:* user secrets are present -
 // see infra/README.md for provisioning and token generation) or the YARP fallback project
 // (always available: CI has no Azure credentials and must stay offline-green). Both
-// implement the same route contract: /orders and /ratings prefix-stripped, everything else
-// to the catalog api. Both branches name the resource "gateway" so the integration-test
+// implement the same route contract: /orders, /ratings and /chat prefix-stripped, everything
+// else to the catalog api. Both branches name the resource "gateway" so the integration-test
 // fixture waits on one name regardless of mode.
 var gatewayPort = isTest ? 18700 : 7500;
 var apimConfigEndpoint = builder.Configuration["Apim:ConfigEndpoint"];
@@ -286,7 +336,8 @@ else
       // mode-dependent. No WaitFor on the backends - the proxy just 502s until they're up.
       .WithEnvironment("ReverseProxy__Clusters__api__Destinations__default__Address", api.GetEndpoint("http"))
       .WithEnvironment("ReverseProxy__Clusters__orders__Destinations__default__Address", orders.GetEndpoint("http"))
-      .WithEnvironment("ReverseProxy__Clusters__ratings__Destinations__default__Address", ratings.GetEndpoint("http"));
+      .WithEnvironment("ReverseProxy__Clusters__ratings__Destinations__default__Address", ratings.GetEndpoint("http"))
+      .WithEnvironment("ReverseProxy__Clusters__chat__Destinations__default__Address", chat.GetEndpoint("http"));
   if (isTest)
   {
     gatewayFallback.WithHttpEndpoint(port: gatewayPort)

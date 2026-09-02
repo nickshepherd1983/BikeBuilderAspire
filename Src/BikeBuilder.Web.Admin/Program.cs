@@ -104,6 +104,26 @@ AddAuthorizedClient<RatingsClient>(WithTrailingSlash(ratingsApiBaseAddress), rat
 var ordersApiBaseAddress = builder.Configuration["OrdersApiBaseAddress"] ?? "http://localhost:7500/orders";
 AddAuthorizedClient<OrdersClient>(WithTrailingSlash(ordersApiBaseAddress), ordersApiBaseAddress);
 
+// The assistant: each answer runs a local model through a tool-calling loop and can take
+// tens of seconds, so this client keeps the same token handler but lifts the standard
+// handler's 10s attempt / 30s total timeouts - and HttpClient's own 100s default. Polly
+// validates total >= attempt and a breaker sampling window >= 2 x attempt, hence the spread.
+var chatApiBaseAddress = builder.Configuration["ChatApiBaseAddress"] ?? "http://localhost:7500/chat";
+builder.Services.AddHttpClient<ChatClient>(client =>
+    {
+      client.BaseAddress = new Uri(WithTrailingSlash(chatApiBaseAddress));
+      client.Timeout = TimeSpan.FromMinutes(5);
+    })
+    .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
+        .ConfigureHandler(authorizedUrls: [chatApiBaseAddress]))
+    .AddStandardResilienceHandler(options =>
+    {
+      options.Retry.DisableForUnsafeHttpMethods();
+      options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(4);
+      options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+      options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(8);
+    });
+
 await builder.Build().RunAsync();
 
 static string WithTrailingSlash(string address) => address.EndsWith('/') ? address : address + "/";

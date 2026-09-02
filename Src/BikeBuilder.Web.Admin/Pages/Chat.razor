@@ -1,0 +1,100 @@
+@page "/chat"
+@attribute [Authorize(Policy = Policies.AdminOnly)]
+
+<PageTitle>Assistant</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" GutterBottom="true">Assistant</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Ask about components, bike builds, orders and ratings in plain English. A model running on
+    this machine answers by looking the data up as it goes - open "Used N tools" under a reply to
+    see exactly what it checked.
+</MudText>
+
+@if (_statusFailed)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <span>
+                The assistant service could not be reached. It is one of the last resources to start -
+                give it a moment and retry, or check the chat and gateway resources in the Aspire dashboard.
+            </span>
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" OnClick="LoadStatusAsync">Retry</MudButton>
+        </MudStack>
+    </MudAlert>
+}
+else if (_status is not null && (!_status.OllamaReachable || !_status.ModelAvailable || _status.McpError is not null))
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">
+        @if (!_status.OllamaReachable)
+        {
+            <div>Ollama is not reachable at @_status.Endpoint. Start Ollama on this machine, then reload this page.</div>
+        }
+        else if (!_status.ModelAvailable)
+        {
+            <div>The model "@_status.Model" is not installed. Run <code>ollama pull @_status.Model</code>, then reload this page.</div>
+        }
+        @if (_status.McpError is not null)
+        {
+            <div>The data tools are unavailable: @_status.McpError</div>
+        }
+    </MudAlert>
+}
+
+<MudPaper Class="pa-4">
+    @if (_transcript.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Try one of these:</MudText>
+        <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1" Class="mb-4">
+            @foreach (var suggestion in Suggestions)
+            {
+                <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Disabled="_busy"
+                         OnClick="() => SendAsync(suggestion)">@suggestion</MudChip>
+            }
+        </MudStack>
+    }
+
+    <MudStack Spacing="2" Class="mb-4" role="log" aria-label="Conversation">
+        @foreach (var bubble in _transcript)
+        {
+            <MudStack Row="true" Justify="@(bubble.IsUser ? Justify.FlexEnd : Justify.FlexStart)">
+                <MudPaper Elevation="0" Class="@(bubble.IsUser ? "chat-bubble chat-bubble-user pa-3" : "chat-bubble chat-bubble-assistant pa-3")">
+                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap;" Color="@(bubble.IsError ? Color.Error : Color.Inherit)">@bubble.Content</MudText>
+                    @if (bubble.ToolCalls.Count > 0)
+                    {
+                        <MudExpansionPanels Elevation="0" Dense="true" Class="mt-2">
+                            <MudExpansionPanel Text="@($"Used {bubble.ToolCalls.Count} tool{(bubble.ToolCalls.Count == 1 ? "" : "s")}")">
+                                @foreach (var call in bubble.ToolCalls)
+                                {
+                                    <MudText Typo="Typo.caption" Class="d-block"><b>@call.Name</b> @call.Arguments</MudText>
+                                    <MudText Typo="Typo.caption" Class="d-block mb-2 chat-tool-result">@call.ResultPreview</MudText>
+                                }
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+                    @if (bubble.Model is not null)
+                    {
+                        <MudText Typo="Typo.caption" Class="d-block mt-1">@bubble.Model · @((bubble.ElapsedMs / 1000.0).ToString("0.0"))s</MudText>
+                    }
+                </MudPaper>
+            </MudStack>
+        }
+        @if (_busy)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                <MudText Typo="Typo.body2">Thinking…</MudText>
+            </MudStack>
+        }
+    </MudStack>
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudTextField @bind-Value="_input" Label="Ask a question" Variant="Variant.Outlined" Immediate="true"
+                      Disabled="_busy" OnKeyUp="OnKeyUp" Class="flex-grow-1" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Filled.Send"
+                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_input))" OnClick="() => SendAsync(_input)">
+            Send
+        </MudButton>
+        <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" aria-label="Clear conversation"
+                       Disabled="@(_busy || _transcript.Count == 0)" OnClick="Clear" />
+    </MudStack>
+</MudPaper>

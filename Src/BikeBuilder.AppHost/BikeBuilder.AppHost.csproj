@@ -32,10 +32,12 @@
          from the shared contracts. -->
     <ProjectReference Include="..\BikeBuilder.Contracts\BikeBuilder.Contracts.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="..\BikeBuilder.API\BikeBuilder.API.csproj" />
+    <ProjectReference Include="..\BikeBuilder.API.Chat\BikeBuilder.API.Chat.csproj" />
     <ProjectReference Include="..\BikeBuilder.API.Orders\BikeBuilder.API.Orders.csproj" />
     <ProjectReference Include="..\BikeBuilder.API.Ratings\BikeBuilder.API.Ratings.csproj" />
     <ProjectReference Include="..\BikeBuilder.DataSeeder\BikeBuilder.DataSeeder.csproj" />
     <ProjectReference Include="..\BikeBuilder.Gateway\BikeBuilder.Gateway.csproj" />
+    <ProjectReference Include="..\BikeBuilder.MCP\BikeBuilder.MCP.csproj" />
     <ProjectReference Include="..\BikeBuilder.Web.Admin\BikeBuilder.Web.Admin.csproj" />
     <ProjectReference Include="..\BikeBuilder.Web.Public\BikeBuilder.Web.Public.csproj" />
   </ItemGroup>
