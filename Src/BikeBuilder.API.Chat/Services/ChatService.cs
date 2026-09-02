@@ -33,8 +33,16 @@ public sealed class ChatService(
         total) over paging through long lists.
       - Prices and totals are decimal amounts in the shop's currency; show them with two decimals.
       - If a tool reports that orders require a signed-in role, tell the user that plainly.
-      - Answer in concise plain text: short sentences or simple dash lists, no markdown tables or
-        headings. Say when an answer is partial (for example, based on the 100 most recent orders).
+      - Keep answers concise, and say when one is partial (for example, based on the 100 most
+        recent orders).
+
+      Formatting (the answer is rendered as Markdown in a narrow chat panel):
+      - Any list of items that carries numbers - prices, totals, quantities, counts, ratings - goes
+        in a Markdown table: a header row, one item per row, each number in its own column, at most
+        five columns. Never write such lists as sentences or bullets.
+      - A single key figure ("total revenue is **12,345.00**") goes in bold.
+      - Lists without numbers are short bullet lists. Use bold for names the user asked about.
+      - No headings, no horizontal rules, no code blocks unless the user asks for JSON.
       """;
 
   static readonly JsonSerializerOptions _traceJson = new(JsonSerializerDefaults.Web);

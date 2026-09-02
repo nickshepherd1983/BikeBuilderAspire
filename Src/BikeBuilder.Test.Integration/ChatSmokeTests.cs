@@ -68,9 +68,16 @@ public class ChatSmokeTests(BikeBuilderAppFixture fixture)
     if (await missingModel.CountAsync() > 0)
       return;
 
-    await page.GetByText("Which bike build has the best average rating?").ClickAsync();
+    // The components question yields tabular data, which exercises the Markdown table path.
+    await page.GetByText("Which are the five most expensive components?").ClickAsync();
     var answer = page.GetByRole(AriaRole.Log).Locator(".chat-bubble-assistant");
     await Expect(answer).ToBeVisibleAsync(new() { Timeout = 240_000 });
     await Expect(answer).Not.ToContainTextAsync("Could not reach");
+
+    // Keep a picture of the rendered answer (Markdown tables, lists) next to the videos - the
+    // one artifact that shows what the model actually produced on this machine.
+    var resultsDir = Path.Combine(AppContext.BaseDirectory, "TestResults");
+    Directory.CreateDirectory(resultsDir);
+    await page.Locator(".assistant-panel").ScreenshotAsync(new() { Path = Path.Combine(resultsDir, "chat-answer.png") });
   }
 }

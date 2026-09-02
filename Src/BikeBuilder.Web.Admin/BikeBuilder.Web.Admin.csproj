@@ -37,6 +37,8 @@
          ServiceDefaults (browser-hosted), so the handler is added per client there. -->
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="MudBlazor" />
+    <!-- The assistant answers in Markdown; Markdig turns its tables and lists into real elements. -->
+    <PackageReference Include="Markdig" />
     <PackageReference Include="SonarAnalyzer.CSharp">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
