@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Shared resilience policies (Grpc/CatalogGrpcRetry, Resilience/HubConnectionRetry): every
+         gRPC and SignalR client head already carries these two packages, so this project is
+         where one definition can serve the server apps and the WASM/MAUI heads alike. -->
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Polly.Core" />
     <PackageReference Include="SonarAnalyzer.CSharp">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

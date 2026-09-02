@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -44,7 +45,12 @@ public static class Extensions
 
     builder.Services.ConfigureHttpClientDefaults(http =>
     {
-      http.AddStandardResilienceHandler();
+      // Retries, circuit breaker, and per-attempt/total timeouts for every factory-built client.
+      // Unsafe methods (POST/PUT/PATCH/DELETE) are excluded from the retry: a replayed request
+      // that already executed would create a duplicate user, upload, or cart line. Clients whose
+      // POSTs are safe to retry (the GraphQL orders client, token fetches) opt back in
+      // explicitly; gRPC-Web calls get their retry from the channel's ServiceConfig instead.
+      http.AddStandardResilienceHandler(options => options.Retry.DisableForUnsafeHttpMethods());
       http.AddServiceDiscovery();
     });
 
@@ -69,7 +75,11 @@ public static class Extensions
         .WithMetrics(metrics => metrics
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddRuntimeInstrumentation())
+            .AddRuntimeInstrumentation()
+            // Retry / circuit-breaker / timeout events from every Polly pipeline (the HTTP
+            // resilience handler and the app-defined Cosmos/Redis pipelines), so transient
+            // faults are visible in the dashboard rather than silently absorbed.
+            .AddMeter("Polly"))
         .WithTracing(tracing =>
         {
           if (includeAspNetCoreTracing)

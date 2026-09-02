@@ -80,8 +80,18 @@ if (builder.Configuration["UserAdmin:MockUrl"] is { Length: > 0 })
 else if (builder.Configuration["Auth0:Management:Domain"] is { Length: > 0 } managementDomain)
 {
   builder.Services.AddHttpClient();
+  // The directory client keeps the shared default (no retry on its POST/DELETE - a replayed
+  // user creation would fail with a duplicate). The token fetch is a POST too, but repeating
+  // it is harmless, so its client gets the full retry policy back.
+  // EXTEXP0001: RemoveAllResilienceHandlers is still marked experimental, but it's the
+  // documented way to swap the ConfigureHttpClientDefaults handler for a per-client one.
+#pragma warning disable EXTEXP0001
+  builder.Services.AddHttpClient("auth0-token")
+      .RemoveAllResilienceHandlers()
+      .AddStandardResilienceHandler();
+#pragma warning restore EXTEXP0001
   builder.Services.AddSingleton(sp => new Auth0ManagementTokenProvider(
-      sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+      sp.GetRequiredService<IHttpClientFactory>().CreateClient("auth0-token"),
       sp.GetRequiredService<IConfiguration>()));
   builder.Services.AddSingleton<IUserDirectory>(sp =>
   {

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Polly;
 using StackExchange.Redis;
 
 namespace BikeBuilder.API.Orders.Services;
@@ -6,8 +7,14 @@ namespace BikeBuilder.API.Orders.Services;
 // The only code in this service that talks to Redis. Draft carts are stored one JSON blob
 // per key under a sliding one-hour TTL, with a sorted set alongside as the "list all drafts"
 // index the back office needs (Redis can't enumerate by pattern without SCAN).
-public class DraftOrderStore(IConnectionMultiplexer _redis)
+//
+// Transient faults: the "redis" pipeline (Program.cs) retries connection drops and timeouts
+// around the commands that are safe to repeat - GET, SET, ZADD, ZREM all converge on the same
+// state however many times they run. ClaimAsync is the exception, see there.
+public class DraftOrderStore(IConnectionMultiplexer _redis, [FromKeyedServices(DraftOrderStore.RetryPipelineKey)] ResiliencePipeline _retry)
 {
+  public const string RetryPipelineKey = "redis";
+
   public static readonly TimeSpan Lifetime = TimeSpan.FromHours(1);
 
   // The index. Members are draft ids, scored by creation time so ListAsync gets its ordering
@@ -22,7 +29,7 @@ public class DraftOrderStore(IConnectionMultiplexer _redis)
 
   public async Task<DraftOrder?> GetAsync(Guid id)
   {
-    var payload = await _redis.GetDatabase().StringGetAsync(KeyFor(id));
+    var payload = await _retry.ExecuteAsync(async _ => await _redis.GetDatabase().StringGetAsync(KeyFor(id)));
     return payload.IsNullOrEmpty ? null : Deserialize(payload);
   }
 
@@ -30,11 +37,15 @@ public class DraftOrderStore(IConnectionMultiplexer _redis)
   // the TTL sliding: an actively shopping visitor never has their cart expire under them.
   public async Task SaveAsync(DraftOrder draft)
   {
-    var db = _redis.GetDatabase();
     draft.ExpiresAt = DateTimeOffset.UtcNow.Add(Lifetime);
+    var payload = JsonSerializer.Serialize(draft, _jsonOptions);
 
-    await db.StringSetAsync(KeyFor(draft.Id), JsonSerializer.Serialize(draft, _jsonOptions), Lifetime);
-    await db.SortedSetAddAsync(IndexKey, draft.Id.ToString(), draft.CreatedAt.ToUnixTimeMilliseconds());
+    await _retry.ExecuteAsync(async _ =>
+    {
+      var db = _redis.GetDatabase();
+      await db.StringSetAsync(KeyFor(draft.Id), payload, Lifetime);
+      await db.SortedSetAddAsync(IndexKey, draft.Id.ToString(), draft.CreatedAt.ToUnixTimeMilliseconds());
+    });
   }
 
   /// <summary>
@@ -45,6 +56,10 @@ public class DraftOrderStore(IConnectionMultiplexer _redis)
   /// This replaces the SQL rowversion token that used to turn a concurrent double-process
   /// into a concurrency exception. GETDEL is a single round trip, so the loser of a race gets
   /// null back rather than a second copy of the cart.
+  ///
+  /// Deliberately NOT retried: a GETDEL that executed but whose reply was lost to a timeout
+  /// would come back null on the retry, and the shopper's cart would vanish behind an
+  /// ORDER_NOT_FOUND. Failing the request and leaving the cart in place is the better outcome.
   /// </remarks>
   public async Task<DraftOrder?> ClaimAsync(Guid id)
   {
@@ -58,7 +73,7 @@ public class DraftOrderStore(IConnectionMultiplexer _redis)
   }
 
   // Newest first, matching the back office's Orders list.
-  public async Task<List<DraftOrder>> ListAsync()
+  public async Task<List<DraftOrder>> ListAsync() => await _retry.ExecuteAsync<List<DraftOrder>>(async _ =>
   {
     var db = _redis.GetDatabase();
     // Fully qualified: the global using of Data.Entities puts an Order entity in scope too.
@@ -85,7 +100,7 @@ public class DraftOrderStore(IConnectionMultiplexer _redis)
       await db.SortedSetRemoveAsync(IndexKey, [.. expired]);
 
     return drafts;
-  }
+  });
 
   static DraftOrder Deserialize(RedisValue payload) =>
       JsonSerializer.Deserialize<DraftOrder>(payload.ToString(), _jsonOptions)

@@ -10,6 +10,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.Cosmos" />
     <PackageReference Include="Newtonsoft.Json" />
+    <!-- Retry pipeline for the Cosmos seed writes (DatabaseSeeder). -->
+    <PackageReference Include="Polly.Core" />
     <PackageReference Include="SonarAnalyzer.CSharp">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

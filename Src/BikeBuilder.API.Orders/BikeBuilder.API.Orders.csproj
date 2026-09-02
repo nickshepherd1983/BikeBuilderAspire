@@ -36,6 +36,8 @@
     </PackageReference>
     <!-- Stable-semconv SqlClient tracing records db.query.text, matching BikeBuilder.API. -->
     <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" />
+    <!-- DI-registered retry pipeline for the Redis draft-cart store (Program.cs "redis"). -->
+    <PackageReference Include="Polly.Extensions" />
     <PackageReference Include="SonarAnalyzer.CSharp">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

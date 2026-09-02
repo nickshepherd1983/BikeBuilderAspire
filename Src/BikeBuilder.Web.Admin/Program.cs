@@ -1,8 +1,10 @@
+using BikeBuilder.Contracts.Grpc;
 using BikeBuilder.Web.Admin;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.Extensions.Http.Resilience;
 using MudBlazor.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -72,54 +74,45 @@ builder.Services.AddScoped(sp =>
         : ChannelCredentials.Create(ChannelCredentials.Insecure, callCredentials),
     // Required to send bearer tokens over the http:// address the Testcontainers
     // environment uses; the https dev/prod path never sets it.
-    UnsafeUseInsecureChannelCallCredentials = !isHttps
+    UnsafeUseInsecureChannelCallCredentials = !isHttps,
+    // Retries Unavailable on the catalog read methods only - see CatalogGrpcRetry.
+    ServiceConfig = CatalogGrpcRetry.CreateServiceConfig()
   });
 });
 
 builder.Services.AddScoped(sp => new ComponentService.ComponentServiceClient(sp.GetRequiredService<GrpcChannel>()));
 builder.Services.AddScoped(sp => new BikeBuildService.BikeBuildServiceClient(sp.GetRequiredService<GrpcChannel>()));
 
-builder.Services.AddScoped(sp =>
-{
-  var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
-      .ConfigureHandler(authorizedUrls: [apiBaseAddress]);
-  handler.InnerHandler = new HttpClientHandler();
-  return new ComponentImageClient(new HttpClient(handler) { BaseAddress = new Uri(apiBaseAddress) });
-});
+// The REST/GraphQL clients come from IHttpClientFactory so they can carry the standard
+// resilience handler (retries with backoff, circuit breaker, per-attempt and total timeouts).
+// Retries are limited to safe methods: the image upload posts a browser stream that can't be
+// replayed, and a repeated POST would create a second rating or user. What this buys is the
+// GETs - list pages, the polled in-process orders, and the intermittent "Failed to fetch" the
+// csproj comment describes - recovering on their own.
+AddAuthorizedClient<ComponentImageClient>(apiBaseAddress, apiBaseAddress);
 
 // Admin-only user administration; same origin and token handling as the image client.
-builder.Services.AddScoped(sp =>
-{
-  var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
-      .ConfigureHandler(authorizedUrls: [apiBaseAddress]);
-  handler.InnerHandler = new HttpClientHandler();
-  return new AdminClient(new HttpClient(handler) { BaseAddress = new Uri(apiBaseAddress) });
-});
+AddAuthorizedClient<AdminClient>(apiBaseAddress, apiBaseAddress);
 
 // These two base addresses carry the gateway's /ratings and /orders path prefixes, so the
 // clients use relative request paths against them. A trailing slash is required for that:
 // without it, Uri composition drops the last path segment (the prefix). authorizedUrls
 // prefix-matches, so the un-slashed configured value still covers every sub-path.
 var ratingsApiBaseAddress = builder.Configuration["RatingsApiBaseAddress"] ?? "http://localhost:7500/ratings";
-
-builder.Services.AddScoped(sp =>
-{
-  var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
-      .ConfigureHandler(authorizedUrls: [ratingsApiBaseAddress]);
-  handler.InnerHandler = new HttpClientHandler();
-  return new RatingsClient(new HttpClient(handler) { BaseAddress = new Uri(WithTrailingSlash(ratingsApiBaseAddress)) });
-});
+AddAuthorizedClient<RatingsClient>(WithTrailingSlash(ratingsApiBaseAddress), ratingsApiBaseAddress);
 
 var ordersApiBaseAddress = builder.Configuration["OrdersApiBaseAddress"] ?? "http://localhost:7500/orders";
-
-builder.Services.AddScoped(sp =>
-{
-  var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
-      .ConfigureHandler(authorizedUrls: [ordersApiBaseAddress]);
-  handler.InnerHandler = new HttpClientHandler();
-  return new OrdersClient(new HttpClient(handler) { BaseAddress = new Uri(WithTrailingSlash(ordersApiBaseAddress)) });
-});
+AddAuthorizedClient<OrdersClient>(WithTrailingSlash(ordersApiBaseAddress), ordersApiBaseAddress);
 
 await builder.Build().RunAsync();
 
 static string WithTrailingSlash(string address) => address.EndsWith('/') ? address : address + "/";
+
+// A typed client whose requests carry the user's access token (the documented Blazor WASM
+// pattern: AuthorizationMessageHandler resolved from the handler's own scope) plus the
+// standard resilience handler with unsafe-method retries disabled.
+void AddAuthorizedClient<TClient>(string baseAddress, string authorizedUrl) where TClient : class =>
+    builder.Services.AddHttpClient<TClient>(client => client.BaseAddress = new Uri(baseAddress))
+        .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
+            .ConfigureHandler(authorizedUrls: [authorizedUrl]))
+        .AddStandardResilienceHandler(options => options.Retry.DisableForUnsafeHttpMethods());

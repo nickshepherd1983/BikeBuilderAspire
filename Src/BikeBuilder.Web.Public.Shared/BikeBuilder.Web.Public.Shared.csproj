@@ -31,12 +31,20 @@
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <!-- Resilience handler for the generated orders GraphQL client (Services/OrdersClientResilience);
+         the WASM and MAUI heads have no ServiceDefaults, so this is where they pick it up. -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="MudBlazor" />
     <PackageReference Include="StrawberryShake.Blazor" />
     <PackageReference Include="SonarAnalyzer.CSharp">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared gRPC and SignalR retry policies (Contracts/Grpc, Contracts/Resilience). -->
+    <ProjectReference Include="..\BikeBuilder.Contracts\BikeBuilder.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

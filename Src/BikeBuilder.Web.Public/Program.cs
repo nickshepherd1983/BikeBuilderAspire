@@ -1,3 +1,4 @@
+using BikeBuilder.Contracts.Grpc;
 using BikeBuilder.Web.Public.Components;
 using Grpc.Net.Client.Web;
 using MudBlazor.Services;
@@ -42,13 +43,16 @@ var catalogAddress = new Uri(
 var ordersGraphQLAddress = new Uri("https+http://orders/graphql");
 #pragma warning restore S1075
 // HTTP/1.1 exactly: gRPC-Web defaults to HTTP/2, and Kestrel can't speak h2c alongside
-// HTTP/1.1 on a plaintext endpoint.
+// HTTP/1.1 on a plaintext endpoint. The channel's ServiceConfig retries Unavailable on the
+// read methods (see CatalogGrpcRetry); the factory's standard resilience handler still wraps
+// each attempt with its timeouts and circuit breaker but no longer retries these POSTs itself.
 builder.Services
     .AddGrpcClient<ComponentService.ComponentServiceClient>(options => options.Address = catalogAddress)
     .ConfigureChannel(channel =>
     {
       channel.HttpVersion = System.Net.HttpVersion.Version11;
       channel.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+      channel.ServiceConfig = CatalogGrpcRetry.CreateServiceConfig();
     })
     .ConfigurePrimaryHttpMessageHandler(() => new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()));
 builder.Services
@@ -57,6 +61,7 @@ builder.Services
     {
       channel.HttpVersion = System.Net.HttpVersion.Version11;
       channel.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+      channel.ServiceConfig = CatalogGrpcRetry.CreateServiceConfig();
     })
     .ConfigurePrimaryHttpMessageHandler(() => new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()));
 builder.Services.AddScoped<CatalogClient>();
@@ -65,8 +70,10 @@ builder.Services.AddHttpClient("catalog-images", client => client.BaseAddress = 
 
 // StrawberryShake-generated orders client, defined by the operation documents in the
 // GraphQL folder. Also served by IHttpClientFactory, so the same service discovery applies.
+// OrdersClientResilience swaps the shared default handler for one whose retry is limited to
+// connection failures - the mutations aren't safe to replay after a timeout.
 builder.Services.AddOrdersClient()
-    .ConfigureHttpClient(client => client.BaseAddress = ordersGraphQLAddress);
+    .ConfigureHttpClient(client => client.BaseAddress = ordersGraphQLAddress, OrdersClientResilience.Configure);
 builder.Services.AddScoped<OrderState>();
 // The server circuit reaches browser localStorage over JS interop, same as the WASM runtime.
 builder.Services.AddScoped<IOrderIdStorage, BrowserOrderIdStorage>();

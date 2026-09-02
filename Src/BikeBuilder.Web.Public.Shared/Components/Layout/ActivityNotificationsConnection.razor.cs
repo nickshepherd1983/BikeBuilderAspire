@@ -1,3 +1,4 @@
+using BikeBuilder.Contracts.Resilience;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace BikeBuilder.Web.Public.Components.Layout;
@@ -31,36 +32,22 @@ public partial class ActivityNotificationsConnection(
 
     // Fire-and-forget with retries: these toasts are a nicety, and this connection now lives
     // in the layout - an exception awaited here would take down every page, not just one.
-    // Automatic reconnect only covers drops AFTER a successful start, hence the retry loop.
+    // Automatic reconnect only covers drops AFTER a successful start, hence the retry pipeline.
     _connectCts = new CancellationTokenSource();
     _ = ConnectWithRetriesAsync(_hubConnection, _connectCts.Token);
   }
 
   static async Task ConnectWithRetriesAsync(HubConnection hubConnection, CancellationToken cancellationToken)
   {
-    for (var attempt = 1; attempt <= 5 && !cancellationToken.IsCancellationRequested; attempt++)
+    try
     {
-      try
-      {
-        await hubConnection.StartAsync(cancellationToken);
-        return;
-      }
-      catch (Exception) when (attempt < 5)
-      {
-        try
-        {
-          await Task.Delay(TimeSpan.FromSeconds(3 * attempt), cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-          return;
-        }
-      }
-      catch (Exception)
-      {
-        // Out of attempts - give up quietly; the storefront works fine without toasts.
-        return;
-      }
+      await HubConnectionRetry.Pipeline.ExecuteAsync(
+          static (hub, ct) => new ValueTask(hub.StartAsync(ct)), hubConnection, cancellationToken);
+    }
+    catch (Exception)
+    {
+      // Out of attempts, or disposed mid-connect - give up quietly; the storefront works fine
+      // without toasts.
     }
   }
 

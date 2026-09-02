@@ -1,3 +1,4 @@
+using BikeBuilder.Contracts.Grpc;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
 using Microsoft.Extensions.Logging;
@@ -31,7 +32,10 @@ public static class MauiProgram
     {
       HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()),
       HttpVersion = System.Net.HttpVersion.Version11,
-      HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact
+      HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
+      // Retries Unavailable on the catalog read methods - see CatalogGrpcRetry. Matters more
+      // on a phone than anywhere else: mobile networks drop connections routinely.
+      ServiceConfig = CatalogGrpcRetry.CreateServiceConfig()
     }));
     builder.Services.AddScoped(sp => new ComponentService.ComponentServiceClient(sp.GetRequiredService<GrpcChannel>()));
     builder.Services.AddScoped(sp => new BikeBuildService.BikeBuildServiceClient(sp.GetRequiredService<GrpcChannel>()));
@@ -40,8 +44,11 @@ public static class MauiProgram
     // Guest checkout talks GraphQL to the Orders service through the gateway. Trailing
     // slash + relative "graphql": the base address carries the gateway's /orders prefix,
     // and a rooted "/graphql" would replace the whole path rather than append.
+    // OrdersClientResilience: connection-failure retries + timeouts, shared with the web heads.
     builder.Services.AddOrdersClient()
-        .ConfigureHttpClient(client => client.BaseAddress = new Uri(new Uri(WithTrailingSlash(AppEnvironment.OrdersApiBaseAddress)), "graphql"));
+        .ConfigureHttpClient(
+            client => client.BaseAddress = new Uri(new Uri(WithTrailingSlash(AppEnvironment.OrdersApiBaseAddress)), "graphql"),
+            OrdersClientResilience.Configure);
 
     builder.Services.AddScoped<OrderState>();
     builder.Services.AddScoped<IOrderIdStorage, PreferencesOrderIdStorage>();

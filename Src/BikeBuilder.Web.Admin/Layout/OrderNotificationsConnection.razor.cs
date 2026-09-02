@@ -1,3 +1,4 @@
+using BikeBuilder.Contracts.Resilience;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 
@@ -24,36 +25,22 @@ public partial class OrderNotificationsConnection(ISnackbar _snackbar, IConfigur
 
     // Fire-and-forget with retries: order toasts are a nicety, and an unreachable
     // Web.Public must never take the app down (an exception awaited here would). Automatic
-    // reconnect only covers drops AFTER a successful start, hence the manual retry loop.
+    // reconnect only covers drops AFTER a successful start, hence the retry pipeline.
     _connectCts = new CancellationTokenSource();
     _ = ConnectWithRetriesAsync(_hubConnection, _connectCts.Token);
   }
 
   static async Task ConnectWithRetriesAsync(HubConnection hubConnection, CancellationToken cancellationToken)
   {
-    for (var attempt = 1; attempt <= 5 && !cancellationToken.IsCancellationRequested; attempt++)
+    try
     {
-      try
-      {
-        await hubConnection.StartAsync(cancellationToken);
-        return;
-      }
-      catch (Exception) when (attempt < 5)
-      {
-        try
-        {
-          await Task.Delay(TimeSpan.FromSeconds(3 * attempt), cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-          return;
-        }
-      }
-      catch (Exception)
-      {
-        // Out of attempts - give up quietly; the app works fine without order toasts.
-        return;
-      }
+      await HubConnectionRetry.Pipeline.ExecuteAsync(
+          static (hub, ct) => new ValueTask(hub.StartAsync(ct)), hubConnection, cancellationToken);
+    }
+    catch (Exception)
+    {
+      // Out of attempts, or disposed mid-connect - give up quietly; the app works fine
+      // without order toasts.
     }
   }
 

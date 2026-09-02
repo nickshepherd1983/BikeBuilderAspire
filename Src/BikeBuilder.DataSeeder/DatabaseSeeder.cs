@@ -1,5 +1,8 @@
+using System.Net;
 using System.Text.Json;
 using Microsoft.Azure.Cosmos;
+using Polly;
+using Polly.Retry;
 
 namespace BikeBuilder.DataSeeder;
 
@@ -14,6 +17,24 @@ public static class DatabaseSeeder
   public const string CosmosDatabaseId = "bikebuilder";
   public const string CosmosContainerId = "ratings";
   public const string CosmosPartitionKeyPath = "/bikeBuildId";
+
+  // An overloaded emulator (constrained CI runners) intermittently times out or 503s single
+  // writes - retry the transient statuses with backoff instead of failing the whole seed.
+  // Mirrors the "cosmos-write" pipeline in BikeBuilder.API.Ratings/Program.cs exactly; no DI
+  // here (the test fixture calls SeedAsync directly), hence a static pipeline.
+  static readonly ResiliencePipeline _cosmosWriteRetry = new ResiliencePipelineBuilder()
+      .AddRetry(new RetryStrategyOptions
+      {
+        MaxRetryAttempts = 4,
+        Delay = TimeSpan.FromSeconds(1),
+        BackoffType = DelayBackoffType.Linear,
+        UseJitter = true,
+        ShouldHandle = new PredicateBuilder().Handle<CosmosException>(ex => ex.StatusCode
+            is HttpStatusCode.RequestTimeout
+            or HttpStatusCode.TooManyRequests
+            or HttpStatusCode.ServiceUnavailable)
+      })
+      .Build();
 
   // Same client options as BikeBuilder.API.Ratings/Program.cs so the stored JSON matches
   // what ListRatings/GetRatingSummaries read back (camelCase, /bikeBuildId partition key).
@@ -128,29 +149,21 @@ public static class DatabaseSeeder
       await throttle.WaitAsync();
       try
       {
-        // An overloaded emulator (constrained CI runners) intermittently times out single
-        // writes - retry the transient statuses with backoff instead of failing the whole
-        // seed. A timed-out write may still have landed server-side, so a Conflict on a
-        // retry counts as success.
-        for (var attempt = 1; attempt <= 5; attempt++)
+        // A timed-out write may still have landed server-side, so a Conflict on a retry
+        // counts as success.
+        var attempt = 0;
+        await _cosmosWriteRetry.ExecuteAsync(async ct =>
         {
+          attempt++;
           try
           {
-            await ratingsContainer.CreateItemAsync(document, new PartitionKey(document.BikeBuildId));
-            break;
+            await ratingsContainer.CreateItemAsync(document, new PartitionKey(document.BikeBuildId), cancellationToken: ct);
           }
-          catch (CosmosException ex) when (attempt > 1 && ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+          catch (CosmosException ex) when (attempt > 1 && ex.StatusCode == HttpStatusCode.Conflict)
           {
-            break;
+            // An earlier attempt landed after all.
           }
-          catch (CosmosException ex) when (attempt < 5 && ex.StatusCode
-              is System.Net.HttpStatusCode.RequestTimeout
-              or System.Net.HttpStatusCode.TooManyRequests
-              or System.Net.HttpStatusCode.ServiceUnavailable)
-          {
-            await Task.Delay(TimeSpan.FromSeconds(attempt));
-          }
-        }
+        });
       }
       finally
       {

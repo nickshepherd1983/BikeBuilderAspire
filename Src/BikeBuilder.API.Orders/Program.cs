@@ -1,8 +1,12 @@
 using BikeBuilder.API.Orders.GraphQL;
+using BikeBuilder.Contracts.Grpc;
 using Grpc.Net.Client.Web;
 using HotChocolate.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using OpenTelemetry.Trace;
+using Polly;
+using Polly.Retry;
+using StackExchange.Redis;
 
 // Azure SDK messaging tracing (Service Bus send spans + traceparent stamping on the
 // OrderPlaced events) is still behind this experimental switch. Must be set before any
@@ -32,6 +36,17 @@ if (ordersConnectionString is not null)
 // schema stays complete - without Redis its resolvers simply fail when executed.
 if (builder.Configuration.GetConnectionString("cache") is not null)
   builder.AddRedisClient("cache");
+// StackExchange.Redis reconnects on its own but never re-issues a command that failed while
+// the connection was down or timed out, so the store wraps its idempotent commands in this.
+// Short delays: Redis is local and fast, and a cart mutation is a user waiting on a click.
+builder.Services.AddResiliencePipeline(DraftOrderStore.RetryPipelineKey, pipeline => pipeline.AddRetry(new RetryStrategyOptions
+{
+  MaxRetryAttempts = 3,
+  Delay = TimeSpan.FromMilliseconds(200),
+  BackoffType = DelayBackoffType.Exponential,
+  UseJitter = true,
+  ShouldHandle = new PredicateBuilder().Handle<RedisConnectionException>().Handle<RedisTimeoutException>()
+}));
 builder.Services.AddScoped<DraftOrderStore>();
 
 builder.AddAzureServiceBusClient("servicebus");
@@ -51,13 +66,16 @@ var catalogAddress = new Uri(
     ?? "https://localhost:7100");
 #pragma warning restore S1075
 // HTTP/1.1 exactly: gRPC-Web defaults to HTTP/2, and Kestrel can't speak h2c alongside
-// HTTP/1.1 on a plaintext endpoint.
+// HTTP/1.1 on a plaintext endpoint. The channel's ServiceConfig retries Unavailable on the
+// read methods (see CatalogGrpcRetry); the factory's standard resilience handler still wraps
+// each attempt with its timeouts and circuit breaker but no longer retries these POSTs itself.
 builder.Services
     .AddGrpcClient<ComponentService.ComponentServiceClient>(options => options.Address = catalogAddress)
     .ConfigureChannel(channel =>
     {
       channel.HttpVersion = System.Net.HttpVersion.Version11;
       channel.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+      channel.ServiceConfig = CatalogGrpcRetry.CreateServiceConfig();
     })
     .ConfigurePrimaryHttpMessageHandler(() => new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()));
 builder.Services
@@ -66,6 +84,7 @@ builder.Services
     {
       channel.HttpVersion = System.Net.HttpVersion.Version11;
       channel.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+      channel.ServiceConfig = CatalogGrpcRetry.CreateServiceConfig();
     })
     .ConfigurePrimaryHttpMessageHandler(() => new GrpcWebHandler(GrpcWebMode.GrpcWeb, new SocketsHttpHandler()));
 builder.Services.AddScoped<CatalogPricingService>();

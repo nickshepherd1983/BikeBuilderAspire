@@ -1,3 +1,4 @@
+using BikeBuilder.Contracts.Grpc;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -18,7 +19,9 @@ builder.Services.AddMudServices();
 var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "http://localhost:7500";
 builder.Services.AddScoped(_ => GrpcChannel.ForAddress(apiBaseAddress, new GrpcChannelOptions
 {
-  HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler())
+  HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()),
+  // Retries Unavailable on the catalog read methods - see CatalogGrpcRetry.
+  ServiceConfig = CatalogGrpcRetry.CreateServiceConfig()
 }));
 builder.Services.AddScoped(sp => new ComponentService.ComponentServiceClient(sp.GetRequiredService<GrpcChannel>()));
 builder.Services.AddScoped(sp => new BikeBuildService.BikeBuildServiceClient(sp.GetRequiredService<GrpcChannel>()));
@@ -31,7 +34,10 @@ var ordersApiBaseAddress = builder.Configuration["OrdersApiBaseAddress"] ?? "htt
 builder.Services.AddOrdersClient()
     // Trailing slash + relative "graphql": the base address carries the gateway's /orders
     // prefix, and a rooted "/graphql" would replace the whole path rather than append.
-    .ConfigureHttpClient(client => client.BaseAddress = new Uri(new Uri(WithTrailingSlash(ordersApiBaseAddress)), "graphql"));
+    // OrdersClientResilience: connection-failure retries + timeouts, shared with the server half.
+    .ConfigureHttpClient(
+        client => client.BaseAddress = new Uri(new Uri(WithTrailingSlash(ordersApiBaseAddress)), "graphql"),
+        OrdersClientResilience.Configure);
 
 builder.Services.AddScoped<OrderState>();
 builder.Services.AddScoped<IOrderIdStorage, BrowserOrderIdStorage>();

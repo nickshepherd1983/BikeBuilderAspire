@@ -1,8 +1,12 @@
+using System.Net;
 using BikeBuilder.API.Ratings;
+using BikeBuilder.API.Ratings.Functions;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Polly;
+using Polly.Retry;
 
 // Azure SDK messaging tracing (Service Bus send spans + traceparent stamping on the
 // RatingCreated events) is still behind this experimental switch. Must be set before any
@@ -46,6 +50,21 @@ builder.AddAzureCosmosClient("cosmos", configureClientOptions: options =>
       : null;
 });
 builder.Services.AddSingleton(sp => sp.GetRequiredService<CosmosClient>().GetContainer("bikebuilder", "ratings"));
+
+// The SDK retries 429s on its own; the emulator under load (constrained CI runners, parallel
+// test traffic) additionally times out or 503s single writes, and those it hands back to the
+// caller. Same policy as the DataSeeder: 1s, 2s, 3s, 4s (jittered) between five attempts.
+builder.Services.AddResiliencePipeline(RatingsFunctions.CosmosWritePipelineKey, pipeline => pipeline.AddRetry(new RetryStrategyOptions
+{
+  MaxRetryAttempts = 4,
+  Delay = TimeSpan.FromSeconds(1),
+  BackoffType = DelayBackoffType.Linear,
+  UseJitter = true,
+  ShouldHandle = new PredicateBuilder().Handle<CosmosException>(ex => ex.StatusCode
+      is HttpStatusCode.RequestTimeout
+      or HttpStatusCode.TooManyRequests
+      or HttpStatusCode.ServiceUnavailable)
+}));
 
 builder.AddAzureServiceBusClient("servicebus");
 builder.Services.AddSingleton(sp => sp.GetRequiredService<ServiceBusClient>().CreateSender(ServiceBusQueueNames.Notifications));
