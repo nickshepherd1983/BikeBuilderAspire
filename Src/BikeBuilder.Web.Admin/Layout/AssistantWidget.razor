@@ -1,0 +1,109 @@
+@* Fixed to the bottom-left of every page (see .assistant-widget in app.css). Mounted once by
+   MainLayout, so the transcript and open state survive navigating between pages. *@
+<div class="assistant-widget">
+    @if (!_open)
+    {
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.SmartToy" Size="Size.Medium"
+                aria-label="Open assistant" title="Ask the assistant" OnClick="ToggleOpen" />
+    }
+    else
+    {
+        <MudPaper Elevation="8" Class="assistant-panel">
+            <div class="assistant-header">
+                <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="mr-2" />
+                <MudText Typo="Typo.subtitle1" Class="flex-grow-1">Assistant</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" Color="Color.Inherit" Size="Size.Small"
+                               aria-label="Clear conversation" Disabled="@(_busy || _transcript.Count == 0)" OnClick="Clear" />
+                <MudIconButton Icon="@Icons.Material.Filled.ExpandMore" Color="Color.Inherit" Size="Size.Small"
+                               aria-label="Close assistant" OnClick="ToggleOpen" />
+            </div>
+
+            @if (_statusFailed)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Square="true">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <span>The assistant service could not be reached - it is one of the last resources to start.</span>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" OnClick="LoadStatusAsync">Retry</MudButton>
+                    </MudStack>
+                </MudAlert>
+            }
+            else if (_status is not null && (!_status.OllamaReachable || !_status.ModelAvailable || _status.McpError is not null))
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Square="true">
+                    @if (!_status.OllamaReachable)
+                    {
+                        <div>Ollama is not reachable at @_status.Endpoint. Start Ollama on this machine, then retry.</div>
+                    }
+                    else if (!_status.ModelAvailable)
+                    {
+                        <div>The model "@_status.Model" is not installed. Run <code>ollama pull @_status.Model</code>, then retry.</div>
+                    }
+                    @if (_status.McpError is not null)
+                    {
+                        <div>The data tools are unavailable: @_status.McpError</div>
+                    }
+                    <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small" OnClick="LoadStatusAsync">Retry</MudButton>
+                </MudAlert>
+            }
+
+            <div class="assistant-transcript pa-3" role="log" aria-label="Conversation">
+                @if (_transcript.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        Ask about components, bike builds, orders and ratings. Try one of these:
+                    </MudText>
+                    <MudStack Spacing="1" Class="mb-2">
+                        @foreach (var suggestion in Suggestions)
+                        {
+                            <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Disabled="_busy"
+                                     OnClick="() => SendAsync(suggestion)">@suggestion</MudChip>
+                        }
+                    </MudStack>
+                }
+
+                <MudStack Spacing="2">
+                    @foreach (var bubble in _transcript)
+                    {
+                        <MudStack Row="true" Justify="@(bubble.IsUser ? Justify.FlexEnd : Justify.FlexStart)">
+                            <MudPaper Elevation="0" Class="@(bubble.IsUser ? "chat-bubble chat-bubble-user pa-3" : "chat-bubble chat-bubble-assistant pa-3")">
+                                <MudText Typo="Typo.body2" Style="white-space: pre-wrap;" Color="@(bubble.IsError ? Color.Error : Color.Inherit)">@bubble.Content</MudText>
+                                @if (bubble.ToolCalls.Count > 0)
+                                {
+                                    <MudExpansionPanels Elevation="0" Dense="true" Class="mt-2">
+                                        <MudExpansionPanel Text="@($"Used {bubble.ToolCalls.Count} tool{(bubble.ToolCalls.Count == 1 ? "" : "s")}")">
+                                            @foreach (var call in bubble.ToolCalls)
+                                            {
+                                                <MudText Typo="Typo.caption" Class="d-block"><b>@call.Name</b> @call.Arguments</MudText>
+                                                <MudText Typo="Typo.caption" Class="d-block mb-2 chat-tool-result">@call.ResultPreview</MudText>
+                                            }
+                                        </MudExpansionPanel>
+                                    </MudExpansionPanels>
+                                }
+                                @if (bubble.Model is not null)
+                                {
+                                    <MudText Typo="Typo.caption" Class="d-block mt-1">@bubble.Model · @((bubble.ElapsedMs / 1000.0).ToString("0.0"))s</MudText>
+                                }
+                            </MudPaper>
+                        </MudStack>
+                    }
+                    @if (_busy)
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                            <MudText Typo="Typo.body2">Thinking…</MudText>
+                        </MudStack>
+                    }
+                </MudStack>
+            </div>
+
+            <div class="assistant-composer pa-2">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudTextField @bind-Value="_input" Label="Ask a question" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Immediate="true" Disabled="_busy" OnKeyUp="OnKeyUp" Class="flex-grow-1" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Send" Color="Color.Primary" aria-label="Send"
+                                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_input))" OnClick="() => SendAsync(_input)" />
+                </MudStack>
+            </div>
+        </MudPaper>
+    }
+</div>

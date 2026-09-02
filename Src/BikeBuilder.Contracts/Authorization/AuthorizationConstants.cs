@@ -10,6 +10,9 @@ public static class Roles
   public const string ComponentEditor = "ComponentEditor";
   public const string BikeBuilder = "BikeBuilder";
   public const string OrderViewer = "OrderViewer";
+  // The assistant chat window in the admin app. Its order tools still need OrderViewer (or
+  // Admin) - the role grants the conversation, not the data behind every tool.
+  public const string Assistant = "Assistant";
   public const string Admin = "Admin";
 
   public static readonly IReadOnlyList<string> All =
@@ -17,6 +20,7 @@ public static class Roles
     ComponentEditor,
     BikeBuilder,
     OrderViewer,
+    Assistant,
     Admin,
   ];
 }
@@ -26,6 +30,7 @@ public static class Policies
   public const string ManageComponents = "ManageComponents";
   public const string ManageBikeBuilds = "ManageBikeBuilds";
   public const string ViewOrders = "ViewOrders";
+  public const string UseAssistant = "UseAssistant";
   public const string AdminOnly = "AdminOnly";
 
   public static readonly IReadOnlyList<(string Name, string[] AllowedRoles)> All =
@@ -33,6 +38,7 @@ public static class Policies
     (ManageComponents, [Roles.ComponentEditor, Roles.Admin]),
     (ManageBikeBuilds, [Roles.BikeBuilder, Roles.Admin]),
     (ViewOrders, [Roles.OrderViewer, Roles.Admin]),
+    (UseAssistant, [Roles.Assistant, Roles.Admin]),
     (AdminOnly, [Roles.Admin]),
   ];
 }

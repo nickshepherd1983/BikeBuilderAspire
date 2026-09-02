@@ -67,11 +67,49 @@ h1:focus {
         color: #CF0030 !important;
     }
 
-/* Assistant transcript: the user's questions in the brand red on the right, answers on a
-   soft grey panel on the left; tool output is monospace and wraps hard so a JSON blob can't
-   widen the page. */
+/* Assistant chat window, fixed bottom-left on every page. bottom clears the dense fixed
+   footer bar (48px); z-index sits above that footer (1301) and the drawer (1100) but below
+   MudBlazor's dialogs (1400) and snackbars (1500), so those still cover it. */
+.assistant-widget {
+    position: fixed;
+    left: 16px;
+    bottom: 64px;
+    z-index: 1302;
+}
+
+.assistant-panel {
+    width: 400px;
+    max-width: calc(100vw - 32px);
+    height: 560px;
+    max-height: calc(100vh - 140px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+    .assistant-panel .assistant-header {
+        display: flex;
+        align-items: center;
+        padding: 8px 8px 8px 16px;
+        background-color: #00263A;
+        color: #fff;
+    }
+
+    .assistant-panel .assistant-transcript {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .assistant-panel .assistant-composer {
+        border-top: 1px solid #E1E9EE;
+    }
+
+/* Transcript bubbles: the user's questions in the brand red on the right, answers on a soft
+   grey panel on the left; tool output is monospace and wraps hard so a JSON blob can't widen
+   the panel. */
 .chat-bubble {
-    max-width: 80%;
+    max-width: 90%;
     border-radius: 12px;
 }
 

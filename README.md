@@ -15,7 +15,7 @@ guest-checkout storefront, and watch activity land in real time on a public site
 | --- | --- |
 | `BikeBuilder.AppHost` | .NET Aspire app host — the one thing you run: orchestrates SQL Server, Redis, Azurite, the Service Bus and Cosmos emulators, and all the apps |
 | `BikeBuilder.ServiceDefaults` | Shared Aspire service defaults: OpenTelemetry (traces, metrics, logs), health checks, service discovery |
-| `BikeBuilder.Web.Admin` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service; signed-in users get live order toasts, a back-office Orders view, an In Process view of carts still being filled in, and (Admins) an Assistant page that answers free-text questions about the data |
+| `BikeBuilder.Web.Admin` | Blazor WebAssembly front end (MudBlazor), Auth0 login, talks gRPC-Web to the API and REST to the Ratings service; signed-in users get live order toasts, a back-office Orders view, an In Process view of carts still being filled in, and (Assistant/Admin roles) a chat window on every page that answers free-text questions about the data |
 | `BikeBuilder.API` | ASP.NET Core gRPC API (EF Core + SQL Server), component image upload to Azure Blob Storage, publishes events to Service Bus; catalog reads are anonymous so the storefront can browse |
 | `BikeBuilder.API.Orders` | HotChocolate GraphQL orders microservice, a discrete bounded context: unsubmitted carts live in Redis under a TTL, placed orders in its own SQL Server database. Snapshots catalog prices via gRPC-Web and publishes OrderPlaced events to Service Bus |
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
@@ -254,6 +254,7 @@ only line of defense.
 | `ComponentEditor` | Create/edit/delete components and their images; the Components page |
 | `BikeBuilder` | Create/edit/delete bike builds and their component assignments; rate builds; the Bike Builds pages |
 | `OrderViewer` | The Orders and In Process pages (the role-gated GraphQL order queries) |
+| `Assistant` | The assistant chat window (its order tools still need `OrderViewer`) |
 | `Admin` | Everything above, plus the Admin page for managing users and roles |
 
 Catalog *reads* stay anonymous — the public storefront depends on them. A signed-in user
@@ -285,7 +286,7 @@ configured:
 ### Auth0 tenant runbook (one-time)
 
 1. **Roles**: User Management → Roles → create `ComponentEditor`, `BikeBuilder`,
-   `OrderViewer`, `Admin`; assign them to your users.
+   `OrderViewer`, `Assistant`, `Admin`; assign them to your users.
 2. **Action**: Actions → Library → build a custom post-login Action and attach it to the
    Login flow, so the roles land in both tokens:
 
@@ -326,10 +327,12 @@ The orders GraphQL endpoint (with the Nitro IDE in dev) is at https://localhost:
 
 ## The assistant (local AI)
 
-`/chat` in the admin app (Admin role) answers free-text questions — "which bike build has the
-best average rating?", "what sells best?", "which forks have more than 140 mm of travel?" —
-by letting a language model call tools against the live data. Every reply shows the tools it
-called and what came back, so answers stay checkable.
+The robot button in the bottom-left corner of every admin page (`Assistant` or `Admin` role)
+opens a chat window that answers free-text questions — "which bike build has the best average
+rating?", "what sells best?", "which forks have more than 140 mm of travel?" — by letting a
+language model call tools against the live data. The window belongs to the layout, so the
+conversation follows you from page to page, and every reply shows the tools it called and
+what came back, so answers stay checkable.
 
 Two pieces make it work, both orchestrated by the AppHost:
 
@@ -418,9 +421,9 @@ web app's In Process page and is gone once processed, and verifies the order toa
 public site and the signed-in web app; the third exercises the role system — as the Admin it
 creates an OrderViewer user through the Admin page, signs in as that user in a fresh browser
 context, and checks the nav is trimmed to the order sections and a direct hit on /components
-lands on the "Not authorized" page; the fourth opens the Assistant page, checks it renders and
-reaches its backend, and — only where Ollama is running, so never on CI — asks a question and
-waits for the model's answer. (The stub user
+lands on the "Not authorized" page; the fourth opens the assistant window, checks it reaches its
+backend and stays open when navigating to another page, and — only where Ollama is running, so
+never on CI — asks a question and waits for the model's answer. (The stub user
 `testuser` carries the Admin role, which is why the other tests can touch every surface.)
 Requires Docker and the
 Azure Functions Core Tools. The Aspire testing host (`Aspire.Hosting.Testing`) runs the same

@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Components.Web;
 
-namespace BikeBuilder.Web.Admin.Pages;
+namespace BikeBuilder.Web.Admin.Layout;
 
-// Sealed so the plain Dispose below is the whole story, as on InProcessOrders.
-public sealed partial class Chat(ChatClient _chatClient, ISnackbar _snackbar) : IDisposable
+// The assistant chat window. MainLayout mounts one instance for users with the UseAssistant
+// policy, and a layout instance outlives page navigations, so the open state and transcript
+// carry across pages without any storage. Sealed so the plain Dispose is the whole story.
+public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _snackbar) : IDisposable
 {
   static readonly string[] Suggestions =
   [
@@ -13,19 +15,26 @@ public sealed partial class Chat(ChatClient _chatClient, ISnackbar _snackbar) : 
     "Summarise the most recent orders."
   ];
 
-  // Cancels an in-flight question when the user navigates away - a local model can take a
-  // while, and nobody is left to read the answer.
+  // Cancels an in-flight question when the layout is torn down (sign-out) - a local model
+  // can take a while, and nobody is left to read the answer.
   readonly CancellationTokenSource _cts = new();
   readonly List<ChatBubble> _transcript = [];
 
+  bool _open;
   ChatStatusDto? _status;
   bool _statusFailed;
   string _input = "";
   bool _busy;
 
-  protected override Task OnInitializedAsync() => LoadStatusAsync();
+  // The status check waits for the first open: most page views never touch the assistant.
+  async Task ToggleOpen()
+  {
+    _open = !_open;
+    if (_open && _status is null && !_statusFailed)
+      await LoadStatusAsync();
+  }
 
-  // The chat host starts after the services it depends on, so a page opened early can beat
+  // The chat host starts after the services it depends on, so a window opened early can beat
   // it; the banner's Retry calls this again rather than making the user reload.
   async Task LoadStatusAsync()
   {
@@ -63,7 +72,7 @@ public sealed partial class Chat(ChatClient _chatClient, ISnackbar _snackbar) : 
     }
     catch (OperationCanceledException)
     {
-      // Navigated away.
+      // Signed out mid-question.
     }
     catch (Exception ex) when (ex is HttpRequestException or AccessTokenNotAvailableException or ChatException)
     {

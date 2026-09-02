@@ -11,6 +11,14 @@
     </Authorized>
 </AuthorizeView>
 
+@* The assistant chat window, fixed bottom-left on every page for the Assistant/Admin roles.
+   Outside MudLayout so the drawer's offsets never move it. *@
+<AuthorizeView Policy="@Policies.UseAssistant">
+    <Authorized>
+        <AssistantWidget />
+    </Authorized>
+</AuthorizeView>
+
 <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />

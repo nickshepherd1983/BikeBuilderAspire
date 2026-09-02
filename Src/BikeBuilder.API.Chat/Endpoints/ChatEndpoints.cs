@@ -1,8 +1,9 @@
 namespace BikeBuilder.API.Chat.Endpoints;
 
-// The assistant's HTTP surface. Admin-only end to end: the page, its nav link and these
-// endpoints all gate on the same policy. The caller's bearer token is passed down so the MCP
-// server can forward it to the role-gated orders queries.
+// The assistant's HTTP surface. The chat widget and these endpoints gate on the same policy
+// (the Assistant role, or Admin). The caller's bearer token is passed down so the MCP server
+// can forward it to the role-gated orders queries - an Assistant-only user gets the "needs
+// OrderViewer" answer from those tools rather than the data.
 public static class ChatEndpoints
 {
   const int MaxTurns = 40;
@@ -11,7 +12,7 @@ public static class ChatEndpoints
   public static void MapChatEndpoints(this IEndpointRouteBuilder app)
   {
     var group = app.MapGroup("/api/chat")
-        .RequireAuthorization(Policies.AdminOnly)
+        .RequireAuthorization(Policies.UseAssistant)
         .RequireCors("BlazorWasmClient");
 
     // What the page shows in its banner: is the model host up, is the model pulled, which
