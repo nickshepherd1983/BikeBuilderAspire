@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace BikeBuilder.Web.Admin.Layout;
 
 // The assistant chat window. MainLayout mounts one instance for users with the UseAssistant
 // policy, and a layout instance outlives page navigations, so the open state and transcript
-// carry across pages without any storage. Sealed so the plain Dispose is the whole story.
-public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _snackbar) : IDisposable
+// carry across pages without any storage. Sealed so the DisposeAsync below is the whole story.
+public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _snackbar, IJSRuntime _js) : IAsyncDisposable
 {
   static readonly string[] Suggestions =
   [
@@ -26,10 +27,17 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
   string _input = "";
   bool _busy;
 
+  // The transcript scrolls to its newest message with a tween from the collocated JS module.
+  // The flag is raised by whatever adds a message and consumed by the render that shows it.
+  ElementReference _transcriptElement;
+  IJSObjectReference? _scrollModule;
+  bool _scrollPending;
+
   // The status check waits for the first open: most page views never touch the assistant.
   async Task ToggleOpen()
   {
     _open = !_open;
+    _scrollPending = _open && _transcript.Count > 0;
     if (_open && _status is null && !_statusFailed)
       await LoadStatusAsync();
   }
@@ -60,6 +68,8 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
     _input = "";
     _busy = true;
     _transcript.Add(ChatBubble.User(question));
+    // The render at the first await shows the question and the "Thinking…" row.
+    _scrollPending = true;
     try
     {
       // Failed turns are shown but not resent - the model never saw them.
@@ -82,15 +92,46 @@ public sealed partial class AssistantWidget(ChatClient _chatClient, ISnackbar _s
     finally
     {
       _busy = false;
+      // And the render at completion shows the answer (or the failure).
+      _scrollPending = true;
+    }
+  }
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (!_scrollPending || !_open)
+      return;
+
+    _scrollPending = false;
+    try
+    {
+      _scrollModule ??= await _js.InvokeAsync<IJSObjectReference>("import", "./Layout/AssistantWidget.razor.js");
+      await _scrollModule.InvokeVoidAsync("scrollToBottom", _transcriptElement);
+    }
+    catch (JSException)
+    {
+      // Scrolling is a nicety; a missing module or a torn-down page must not break the chat.
     }
   }
 
   void Clear() => _transcript.Clear();
 
-  public void Dispose()
+  public async ValueTask DisposeAsync()
   {
-    _cts.Cancel();
+    await _cts.CancelAsync();
     _cts.Dispose();
+
+    if (_scrollModule is not null)
+    {
+      try
+      {
+        await _scrollModule.DisposeAsync();
+      }
+      catch (JSException)
+      {
+        // The page is already going away.
+      }
+    }
   }
 
   sealed record ChatBubble(string Role, string Content, List<ToolCallDto> ToolCalls, string? Model, long ElapsedMs, bool IsError)

@@ -74,6 +74,13 @@ public class ChatSmokeTests(BikeBuilderAppFixture fixture)
     await Expect(answer).ToBeVisibleAsync(new() { Timeout = 240_000 });
     await Expect(answer).Not.ToContainTextAsync("Could not reach");
 
+    // The transcript tweens down to the newest message; give the animation a moment, then
+    // confirm it ended at the bottom (within a couple of pixels of rounding).
+    await page.WaitForTimeoutAsync(1_500);
+    var atBottom = await page.Locator(".assistant-transcript")
+        .EvaluateAsync<bool>("el => el.scrollHeight - el.clientHeight - el.scrollTop < 4");
+    Assert.True(atBottom, "The transcript did not scroll to the newest message.");
+
     // Keep a picture of the rendered answer (Markdown tables, lists) next to the videos - the
     // one artifact that shows what the model actually produced on this machine.
     var resultsDir = Path.Combine(AppContext.BaseDirectory, "TestResults");

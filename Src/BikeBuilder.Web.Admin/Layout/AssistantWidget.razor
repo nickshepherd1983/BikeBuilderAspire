@@ -46,7 +46,7 @@
                 </MudAlert>
             }
 
-            <div class="assistant-transcript pa-3" role="log" aria-label="Conversation">
+            <div class="assistant-transcript pa-3" role="log" aria-label="Conversation" @ref="_transcriptElement">
                 @if (_transcript.Count == 0)
                 {
                     <MudText Typo="Typo.body2" Class="mb-2">
@@ -64,7 +64,7 @@
                 <MudStack Spacing="2">
                     @foreach (var bubble in _transcript)
                     {
-                        <MudStack Row="true" Justify="@(bubble.IsUser ? Justify.FlexEnd : Justify.FlexStart)">
+                        <MudStack @key="bubble" Row="true" Justify="@(bubble.IsUser ? Justify.FlexEnd : Justify.FlexStart)">
                             <MudPaper Elevation="0" Class="@(bubble.IsUser ? "chat-bubble chat-bubble-user pa-3" : "chat-bubble chat-bubble-assistant pa-3")">
                                 @if (bubble.IsUser || bubble.IsError)
                                 {
