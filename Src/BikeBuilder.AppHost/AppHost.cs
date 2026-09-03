@@ -438,15 +438,27 @@ void WithStorefrontOrigins<T>(IResourceBuilder<T> resource) where T : IResourceW
   });
 }
 
-// The Functions Worker SDK's `dotnet run` starts whichever `func` is first on PATH. Visual
-// Studio puts its own bundled Core Tools (%LOCALAPPDATA%\AzureFunctionsTools) first for
-// everything it launches - Test Explorer, F5 - and that copy lags the machine-wide install
-// badly: its host can't load the .NET 10 assemblies the notifications worker's Service Bus and
-// SignalR extensions need, so the resource died at startup only when the tests ran from VS.
-// Prefer the machine-wide install (the winget/MSI location) whenever one exists; elsewhere
+// Keeps the two Functions hosts on the machine-wide Core Tools, whatever launched the AppHost.
+//
+// Whenever Visual Studio owns the debug session (F5 on the AppHost, and every Test Explorer run
+// of the integration tests - plain "Run" included, the test host carries DEBUG_SESSION_*), the
+// orchestrator hands project launches to the IDE, and VS starts a Functions project with its own
+// bundled Core Tools: `dotnet %LOCALAPPDATA%\AzureFunctionsTools\Releases\<ver>\cli_x64\func.dll`.
+// That copy runs a .NET 8 host that cannot load the .NET 10 Microsoft.Extensions.* assemblies the
+// notifications worker's Service Bus and SignalR extensions bring along, so the host answers 503
+// forever and the resource never becomes healthy. Aspire's escape hatch for this - "run me as a
+// plain process even inside an IDE session" - is an annotation it keeps internal, so it is reached
+// by name; the cost is that these two projects can't be debugged from VS, which beats a dead one.
+//
+// Process execution means the Worker SDK's `dotnet run` -> `cmd /C func start`, resolved from
+// PATH. Prefer the machine-wide install (the winget/MSI location) whenever one exists; elsewhere
 // (CI, a machine without it) PATH is left alone.
 void WithInstalledCoreTools<T>(IResourceBuilder<T> resource) where T : IResourceWithEnvironment
 {
+  var forceProcessExecution = typeof(DistributedApplication).Assembly.GetType(
+      "Aspire.Hosting.ApplicationModel.ForceProcessExecutionAnnotation", throwOnError: true)!;
+  resource.Resource.Annotations.Add((IResourceAnnotation)Activator.CreateInstance(forceProcessExecution)!);
+
   var installed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Azure Functions Core Tools");
   if (!Directory.Exists(installed))
     return;
