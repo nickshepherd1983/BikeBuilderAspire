@@ -6,4 +6,5 @@ public static class ServiceBusMessageTypes
   public const string BikeBuildCreated = "BikeBuildCreated";
   public const string RatingCreated = "RatingCreated";
   public const string OrderPlaced = "OrderPlaced";
+  public const string OrderConfirmationRequested = "OrderConfirmationRequested";
 }

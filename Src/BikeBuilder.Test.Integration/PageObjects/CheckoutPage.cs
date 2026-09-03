@@ -64,4 +64,14 @@ public class CheckoutPage(IPage page)
 
   public Task WaitForOrderConfirmationAsync(string buyerName, float timeout = 30_000) =>
       ToastHelper.WaitForToastAsync(page, $"Order placed — thanks, {buyerName}!", timeout);
+
+  // "Your order #123 is confirmed ..." - the id the confirmation email's subject carries.
+  public async Task<int> GetOrderIdAsync()
+  {
+    var text = await Confirmation.InnerTextAsync();
+    var match = Regex.Match(text, @"#(\d+)");
+    return match.Success
+        ? int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)
+        : throw new InvalidOperationException($"No order number in the confirmation panel: \"{text}\"");
+  }
 }

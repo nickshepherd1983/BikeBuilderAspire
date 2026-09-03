@@ -4,7 +4,7 @@ namespace BikeBuilder.Test.Integration;
 public class OrderSmokeTests(BikeBuilderAppFixture fixture)
 {
   [Fact]
-  public async Task Can_buy_a_component_as_guest_and_see_order_notifications_everywhere()
+  public async Task Can_buy_a_component_as_guest_and_receive_a_confirmation_email_and_notifications()
   {
     var storePage = await fixture.CreatePageAsync();
     var wasmPage = await fixture.CreatePageAsync();
@@ -53,6 +53,9 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
   {
     const string buyerName = "Playwright Buyer";
     const string shipToCity = "Springfield";
+    // Unique per run: the smtp4dev inbox is matched on recipient, and outside the session-
+    // scoped test containers a developer's persistent catcher keeps earlier runs' receipts.
+    var buyerEmail = $"buyer-{Guid.NewGuid():N}@example.com";
     var store = new StorePage(storePageRaw, fixture.WebPublicBaseAddress);
     var checkout = new CheckoutPage(storePageRaw);
     var notifications = new NotificationFeedPage(notificationPage, fixture.WebPublicBaseAddress);
@@ -71,7 +74,7 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
     // "first visible product" is deterministic without depending on specific seeded names.
     await store.GotoAsync();
     var componentName = await store.GetFirstProductNameAsync();
-    await store.AddFirstProductToCartAsync(guestName: buyerName, guestEmail: "buyer@example.com");
+    await store.AddFirstProductToCartAsync(guestName: buyerName, guestEmail: buyerEmail);
     await Expect(store.CartItem(componentName)).ToBeVisibleAsync(new() { Timeout = 30_000 });
 
     await store.SwitchToTabAsync("Bike Builds");
@@ -110,6 +113,9 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
     await Expect(checkout.Confirmation).ToContainTextAsync("Express");
     await Expect(checkout.Confirmation).ToContainTextAsync("Visa •••• 4242");
     await Expect(checkout.Confirmation).Not.ToContainTextAsync("4242 4242");
+    // ...and promises the receipt this test goes on to collect.
+    await Expect(checkout.Confirmation).ToContainTextAsync($"a receipt is on its way to {buyerEmail}");
+    var orderId = await checkout.GetOrderIdAsync();
 
     // The OrderPlaced event fans out over Service Bus -> Web.Public's listener -> its hub:
     // the anonymous public page sees it on the general feed, and the authenticated WASM
@@ -117,6 +123,20 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
     var expectedToast = $"New order placed by {buyerName}: 1 item(s),";
     await notifications.WaitForNotificationAsync(expectedToast);
     await ToastHelper.WaitForToastAsync(wasmPage, expectedToast);
+
+    // The OrderConfirmationRequested event takes the other queue: Service Bus -> the
+    // notifications Functions worker -> SMTP into smtp4dev. The receipt names the item, the
+    // shipping choice and its price, the destination, and the card summary's last four - the
+    // digits rather than the bullet glyphs keep the assertion charset-agnostic.
+    using var mail = new Smtp4devClient(fixture.Smtp4devBaseAddress);
+    var receipt = await mail.WaitForMessageAsync(buyerEmail,
+        m => m.Subject == $"Your BikeBuilder order #{orderId}", TimeSpan.FromSeconds(90));
+    var receiptText = await mail.GetPlainTextAsync(receipt.Id);
+    Assert.Contains(componentName, receiptText);
+    Assert.Contains("Shipping (Express): $24.99", receiptText);
+    Assert.Contains(shipToCity, receiptText);
+    Assert.Contains("4242", receiptText);
+    Assert.DoesNotContain("4242 4242", receiptText);
 
     // Placing the order cleared the stored draft-order id, so the cart is empty again.
     await store.GotoAsync();

@@ -20,6 +20,24 @@ param publisherEmail string
 @description('Publisher display name required by the API Management service resource.')
 param publisherName string
 
+// Order receipts go out through Mailjet from the Function App. Both keys empty (the default)
+// deploys with email switched off: the worker starts, logs and drops each receipt. These are
+// the first real secrets in this stack - everything else authenticates with the managed
+// identity - and they land in the Function App's settings, not Key Vault (see infra/README).
+@secure()
+@description('Mailjet API key (the public half of the key pair). Leave empty to deploy without email.')
+param mailjetApiKey string = ''
+
+@secure()
+@description('Mailjet secret key (the private half of the key pair).')
+param mailjetSecretKey string = ''
+
+@description('Sender address on order receipts. Must be a validated sender or domain in the Mailjet account.')
+param emailFromAddress string = 'orders@example.com'
+
+@description('Sender display name on order receipts.')
+param emailFromName string = 'BikeBuilder'
+
 // Container images. Azure Container Registry has no free SKU (Basic is roughly $5/month),
 // so these default to GitHub Container Registry, which is free for public repositories and
 // needs no pull credentials when the package is public. The placeholder default lets the
@@ -126,7 +144,8 @@ resource componentImages 'Microsoft.Storage/storageAccounts/blobServices/contain
 
 // ---------------------------------------------------------------------------------------
 // Service Bus - Basic is the only sensible SKU here: it supports queues (all this app uses)
-// and costs per-operation. Basic cannot do topics, which is fine - there is one queue.
+// and costs per-operation. Basic cannot do topics, which is why the order receipt has its
+// own queue below rather than a second subscriber on the notifications one.
 // ---------------------------------------------------------------------------------------
 
 resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
@@ -150,6 +169,20 @@ resource notificationsQueue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-p
     maxDeliveryCount: 10
     // Basic tier caps TTL at 14 days; notifications are worthless long before that.
     defaultMessageTimeToLive: 'PT1H'
+  }
+}
+
+// Consumed by the Function App's SendOrderConfirmationEmail. The shared identity already
+// holds Data Owner on the namespace, so no extra role assignment.
+resource orderEmailsQueue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview' = {
+  parent: serviceBus
+  name: 'bikebuilder-order-emails'
+  properties: {
+    maxDeliveryCount: 10
+    // A receipt is still worth sending hours later (unlike a toast), but not after a day -
+    // and one that expired unsent is worth seeing in the dead-letter queue.
+    defaultMessageTimeToLive: 'P1D'
+    deadLetteringOnMessageExpiration: true
   }
 }
 
@@ -534,8 +567,9 @@ module webPublicApp 'modules/container-app.bicep' = {
 
 // ---------------------------------------------------------------------------------------
 // Functions - Consumption (Y1) carries the clearest always-free grant: 1,000,000 executions
-// and 400,000 GB-seconds per month. Hosts both the ratings API and the Service Bus ->
-// SignalR notification fan-out that replaced the storefront's always-on background service.
+// and 400,000 GB-seconds per month. Hosts the ratings API, the Service Bus -> SignalR
+// notification fan-out that replaced the storefront's always-on background service, and the
+// Service Bus -> Mailjet order receipts.
 // ---------------------------------------------------------------------------------------
 
 resource functionPlan 'Microsoft.Web/serverfarms@2023-12-01' = {
@@ -653,6 +687,24 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'WebAppOrigins__1'
           value: webPublicOrigin
+        }
+        // Order receipts. The worker treats an empty ApiKey as "no provider configured", so
+        // these are set unconditionally rather than behind a ternary.
+        {
+          name: 'Email__Mailjet__ApiKey'
+          value: mailjetApiKey
+        }
+        {
+          name: 'Email__Mailjet__SecretKey'
+          value: mailjetSecretKey
+        }
+        {
+          name: 'Email__From__Address'
+          value: emailFromAddress
+        }
+        {
+          name: 'Email__From__Name'
+          value: emailFromName
         }
       ]
     }

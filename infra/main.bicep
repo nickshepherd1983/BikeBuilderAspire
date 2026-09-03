@@ -38,6 +38,20 @@ param ordersImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 @description('Image for the public storefront.')
 param webPublicImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
+@secure()
+@description('Mailjet API key for order receipts. Leave empty to deploy without email.')
+param mailjetApiKey string = ''
+
+@secure()
+@description('Mailjet secret key for order receipts.')
+param mailjetSecretKey string = ''
+
+@description('Sender address on order receipts; must be validated in the Mailjet account.')
+param emailFromAddress string = 'orders@example.com'
+
+@description('Sender display name on order receipts.')
+param emailFromName string = 'BikeBuilder'
+
 @description('Tags applied to every resource.')
 param tags object = {
   application: 'bikebuilder'
@@ -65,6 +79,10 @@ module resources 'resources.bicep' = {
     apiImage: apiImage
     ordersImage: ordersImage
     webPublicImage: webPublicImage
+    mailjetApiKey: mailjetApiKey
+    mailjetSecretKey: mailjetSecretKey
+    emailFromAddress: emailFromAddress
+    emailFromName: emailFromName
     tags: tags
   }
 }

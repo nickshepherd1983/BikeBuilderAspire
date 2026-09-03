@@ -79,6 +79,12 @@
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Email">
+    <!-- SMTP delivery into the smtp4dev catcher for local dev and the integration tests.
+         Production sends through Mailjet's REST API over a plain HttpClient - no SDK. -->
+    <PackageVersion Include="MailKit" Version="4.17.0" />
+  </ItemGroup>
+
   <ItemGroup Label="AI and MCP">
     <!-- The chat host talks to a local Ollama through OllamaSharp's IChatClient and runs the
          tool loop with Microsoft.Extensions.AI; the MCP packages are the server (AspNetCore)

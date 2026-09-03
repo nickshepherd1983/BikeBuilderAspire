@@ -17,6 +17,10 @@
 .EXAMPLE
     ./deploy.ps1 -SubscriptionId <id> -WhatIf
     Shows the resource changes without applying them.
+
+.EXAMPLE
+    ./deploy.ps1 -SubscriptionId <id> -MailjetApiKey <key> -MailjetSecretKey <secret>
+    Deploys with order-confirmation emails switched on (sent through Mailjet).
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -27,10 +31,23 @@ param(
 
     [string]$EnvironmentName = 'bikebuilder',
 
-    [string]$ParameterFile = "$PSScriptRoot/main.bicepparam"
+    [string]$ParameterFile = "$PSScriptRoot/main.bicepparam",
+
+    # Mailjet key pair for order receipts. Handed to the deployment through environment
+    # variables that main.bicepparam reads, so they never appear in a file. Omit both to
+    # deploy with email switched off (the Function logs and drops each receipt).
+    [string]$MailjetApiKey,
+
+    [string]$MailjetSecretKey
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($MailjetApiKey) { $env:BIKEBUILDER_MAILJET_API_KEY = $MailjetApiKey }
+if ($MailjetSecretKey) { $env:BIKEBUILDER_MAILJET_SECRET_KEY = $MailjetSecretKey }
+if ([bool]$MailjetApiKey -ne [bool]$MailjetSecretKey) {
+    throw 'Pass both -MailjetApiKey and -MailjetSecretKey, or neither.'
+}
 
 function Write-Step($message) { Write-Host "`n=== $message ===" -ForegroundColor Cyan }
 
@@ -150,6 +167,11 @@ Infrastructure is provisioned, but a few things still need doing - see README.md
   5. Put the APIM gateway URL ($($outputs.apimGatewayUrl.value)) into
      Src/BikeBuilder.Web.Admin/wwwroot/appsettings.json (ApiBaseAddress, and the /ratings and
      /orders variants) before publishing the WASM front end.
+
+  6. Order receipts: validate the sender address (emailFromAddress in main.bicepparam) or its
+     domain in the Mailjet account, and re-run with -MailjetApiKey / -MailjetSecretKey if this
+     deployment ran without them. Unsent receipts collect in the bikebuilder-order-emails
+     queue's dead-letter subqueue.
 
 Cost note: Service Bus bills per operation (cents/month), and API Management Developer tier
 is the one deliberately paid resource here - roughly `$50/month. Everything else sits on a

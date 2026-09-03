@@ -49,6 +49,24 @@ var componentImages = storage.AddBlobContainer("component-images");
 var serviceBus = builder.AddAzureServiceBus("servicebus")
     .RunAsEmulator(emulator => emulator.WithLifetime(lifetime));
 serviceBus.AddServiceBusQueue(BikeBuilder.Contracts.Messaging.ServiceBusQueueNames.Notifications);
+// The emulator reads its queue list once, at container start. Outside tests the container is
+// persistent, so after adding a queue here the existing servicebus emulator (and its SQL Edge
+// companion) must be removed once - `docker rm -f` or the dashboard - or the queue won't exist.
+serviceBus.AddServiceBusQueue(BikeBuilder.Contracts.Messaging.ServiceBusQueueNames.OrderEmails);
+
+// Catches every email the notifications Function sends locally; nothing leaves the machine.
+// UI + REST API on the http endpoint (the order smoke test reads the inbox through it), SMTP
+// on the tcp one. IMAP/POP3 off (unused listeners); no volume - a fresh inbox per container.
+var smtp4dev = builder.AddContainer("smtp4dev", "rnwood/smtp4dev", "v3")
+    .WithHttpEndpoint(port: isTest ? 18000 : 7800, targetPort: 80, name: "http")
+    .WithEndpoint(port: isTest ? 18025 : 7825, targetPort: 25, name: "smtp", scheme: "tcp")
+    .WithEnvironment("ServerOptions__HostName", "smtp4dev.local")
+    .WithEnvironment("ServerOptions__ImapPort", "0")
+    .WithEnvironment("ServerOptions__Pop3Port", "0")
+    // The server-status endpoint: anonymous by default, and it only answers once the SMTP
+    // listener the Function needs is up.
+    .WithHttpHealthCheck("/api/Server")
+    .WithLifetime(lifetime);
 
 var cosmos = builder.AddAzureCosmosDB("cosmos")
     .RunAsEmulator(emulator =>
@@ -225,6 +243,35 @@ else
   // the func-start default this app has always used) valid.
   ratings.WithEndpoint("http", endpoint => endpoint.Port = 7071);
 }
+
+// Order receipts. Deployed, this same Functions project also runs the Service Bus -> SignalR
+// fan-out; locally that job belongs to Web.Public's own listener on the notifications queue,
+// so the two SignalR functions are disabled here - a second receiver would steal the toasts,
+// and there is no Azure SignalR to push to anyway.
+var notifications = builder.AddAzureFunctionsProject<Projects.BikeBuilder_API_Notifications>("notifications")
+    .WithHostStorage(storage)
+    .WaitFor(storage)
+    // Aspire's Functions integration writes the emulator connection string under the plain
+    // "servicebus" key, which is exactly what [ServiceBusTrigger(Connection = "servicebus")] reads.
+    .WithReference(serviceBus).WaitFor(serviceBus)
+    .WaitFor(smtp4dev)
+    .WithEnvironment(context =>
+    {
+      var smtp = smtp4dev.GetEndpoint("smtp");
+      context.EnvironmentVariables["Email__Smtp__Host"] = smtp.Property(EndpointProperty.Host);
+      context.EnvironmentVariables["Email__Smtp__Port"] = smtp.Property(EndpointProperty.Port);
+    })
+    .WithEnvironment("Email__From__Address", "orders@bikebuilder.local")
+    .WithEnvironment("Email__From__Name", "BikeBuilder")
+    .WithEnvironment("AzureWebJobs.BroadcastNotification.Disabled", "true")
+    .WithEnvironment("AzureWebJobs.negotiate.Disabled", "true")
+    // Two Functions hosts share the one Azurite account: pin this one's host id so its lock
+    // and lease blobs can't collide with the ratings host's.
+    .WithEnvironment("AzureFunctionsWebHost__hostid", "bikebuilder-notifications")
+    // An anonymous worker function, for the same reason ratings probes its warmup endpoint:
+    // the host's "/" is up long before the worker (and its Service Bus trigger) is.
+    .WithHttpHealthCheck("/api/health");
+notifications.WithEndpoint("http", endpoint => endpoint.Port = isTest ? 18950 : 7072);
 
 var webPublic = builder.AddProject<Projects.BikeBuilder_Web_Public>("web-public",
         options => options.ExcludeLaunchProfile = isTest)

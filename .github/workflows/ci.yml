@@ -53,7 +53,7 @@ jobs:
           sudo docker image prune -af
           df -h /
 
-      # Aspire launches the Functions app (BikeBuilder.API.Ratings) through `func start`.
+      # Aspire launches the Functions apps (BikeBuilder.API.Ratings, .Notifications) through `func start`.
       # Installed straight from the pinned GitHub release: the npm package install needs
       # working registry auth on some runners (E401) and apt needs the Microsoft feed -
       # the zip needs neither.

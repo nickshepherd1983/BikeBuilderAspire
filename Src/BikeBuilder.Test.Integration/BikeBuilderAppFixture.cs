@@ -31,6 +31,9 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
   public string OrdersBaseAddress => "http://127.0.0.1:18600";
   public string McpBaseAddress => "http://127.0.0.1:18800";
   public string ChatBaseAddress => "http://127.0.0.1:18900";
+  public string NotificationsBaseAddress => "http://127.0.0.1:18950";
+  // The mail catcher's UI and REST API; the order smoke test reads the receipt through it.
+  public string Smtp4devBaseAddress => "http://127.0.0.1:18000";
   // The browsers reach api/orders/ratings through this origin (the APIM self-hosted gateway
   // when Apim:* user secrets are configured, the YARP fallback otherwise); the direct
   // addresses above remain for seeding and diagnostics.
@@ -100,7 +103,11 @@ public sealed class BikeBuilderAppFixture : IAsyncLifetime
           notifications.WaitForResourceHealthyAsync("chat", cts.Token),
           // Same resource name in both gateway modes; a healthy APIM container means it
           // authenticated to the cloud config endpoint and is serving the API config.
-          notifications.WaitForResourceHealthyAsync("gateway", cts.Token));
+          notifications.WaitForResourceHealthyAsync("gateway", cts.Token),
+          // The receipt pipeline: the mail catcher, and the Functions worker whose Service Bus
+          // trigger feeds it (its probe is a worker function, so healthy means the worker is up).
+          notifications.WaitForResourceHealthyAsync("smtp4dev", cts.Token),
+          notifications.WaitForResourceHealthyAsync("notifications", cts.Token));
     }
     catch
     {

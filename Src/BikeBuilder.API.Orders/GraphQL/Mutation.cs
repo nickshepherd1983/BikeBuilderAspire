@@ -68,7 +68,7 @@ public static class Mutation
 
   public static async Task<Order> ProcessOrder(Guid orderId, CheckoutInput checkout,
       DraftOrderStore store, OrdersDbContext db, [Service] IEventPublisher eventPublisher,
-      CancellationToken cancellationToken)
+      [Service] OrderConfirmationEmailPublisher emailPublisher, CancellationToken cancellationToken)
   {
     // Validate the form and authorize the card BEFORE claiming the draft: a rejected checkout
     // (typo in the address, declined card) must leave the cart exactly where it was, and
@@ -152,8 +152,30 @@ public static class Mutation
       PaymentSummary = order.Payment.Summary
     }, cancellationToken);
 
+    // The receipt goes out on its own queue, and only when the shopper left an address to
+    // send it to - the checkout page's "a receipt is on its way" line follows the same rule.
+    if (!string.IsNullOrWhiteSpace(order.CustomerEmail))
+      await emailPublisher.TryPublishAsync(ToConfirmationRequest(order, shipping), cancellationToken);
+
     return order;
   }
+
+  static OrderConfirmationRequestedEvent ToConfirmationRequest(Order order, ShippingOption shipping) => new()
+  {
+    OrderId = order.Id,
+    CustomerName = order.CustomerName,
+    CustomerEmail = order.CustomerEmail!,
+    PlacedAt = order.PlacedAt!.Value,
+    Items = order.Items.Select(i => new OrderConfirmationItem(i.ProductName, i.Quantity, i.UnitPrice, i.LineTotal)).ToList(),
+    Subtotal = order.Subtotal,
+    ShippingMethod = shipping.Name,
+    ShippingCost = order.ShippingCost,
+    Total = order.Total,
+    ShippingAddress = new OrderConfirmationAddress(
+        order.ShippingAddress.FullName, order.ShippingAddress.Line1, order.ShippingAddress.Line2,
+        order.ShippingAddress.City, order.ShippingAddress.State, order.ShippingAddress.PostalCode, order.ShippingAddress.Country),
+    PaymentSummary = order.Payment.Summary
+  };
 
   static Address ToAddress(AddressInput input) => new()
   {

@@ -21,18 +21,20 @@ flowchart TB
             cawp["ca-bikebuilder-web-public"]
         end
 
-        func["Function App · Y1 Consumption<br/>Ratings API + notification fan-out"]
+        func["Function App · Y1 Consumption<br/>Ratings API + notification fan-out<br/>+ order receipts"]
 
         sql[("Azure SQL · free serverless<br/>BikeBuilderDb<br/>BikeBuilderOrdersDb")]
         cosmos[("Cosmos · free tier<br/>ratings")]
         st[("Storage account<br/>component-images blob<br/>+ Functions host storage")]
-        bus{{"Service Bus Basic<br/>bikebuilder-notifications"}}
+        bus{{"Service Bus Basic<br/>bikebuilder-notifications<br/>bikebuilder-order-emails"}}
         sigr(["SignalR · Free_F1<br/>Serverless"])
         redis[("Redis<br/>NOT PROVISIONED")]
 
         obs["Log Analytics + App Insights"]
         mi["Managed identity<br/>id-bikebuilder"]
     end
+
+    mailjet["Mailjet<br/>external, API key"]
 
     browser -->|loads the WASM app| swa
     browser -->|loads the storefront| cawp
@@ -53,8 +55,9 @@ flowchart TB
     cawp --> caapi
     cawp --> caorders
 
-    func -->|Service Bus trigger| bus
+    func -->|Service Bus triggers| bus
     func -->|broadcast| sigr
+    func -->|order receipts| mailjet
     func --> cosmos
     func --> st
 
@@ -77,12 +80,15 @@ local traffic flows through the same API definitions, with a per-API policy rewr
 backend to `host.docker.internal` based on which gateway is asking. Server-to-server calls
 (orders→api, storefront→api/orders) and the SignalR path stay direct.
 
-Two things to read off this. The notification fan-out is a **Function**, not part of the
+Three things to read off this. The notification fan-out is a **Function**, not part of the
 storefront — see [why scale-to-zero is load-bearing](#why-scale-to-zero-is-load-bearing) below;
 browsers negotiate against the Function App and then hold their connection with SignalR Service
-directly, so nothing has to stay awake. And **Redis is not provisioned**: Azure Cache for Redis
-has no free tier, so the storefront's draft carts have nowhere to live and `ca-bikebuilder-orders`
-is incomplete until one is added.
+directly, so nothing has to stay awake. The **order receipts** ride the same Function App: a
+second Service Bus queue (`bikebuilder-order-emails`, its own because Basic tier has no topics)
+triggers a function that sends through **Mailjet** — the one external service and the one
+API-key secret in the stack (see [email](#then-email-mailjet)). And **Redis is not provisioned**:
+Azure Cache for Redis has no free tier, so the storefront's draft carts have nowhere to live
+and `ca-bikebuilder-orders` is incomplete until one is added.
 
 ## What Bicep cannot do
 
@@ -110,7 +116,7 @@ subscription of its own; you either transfer one in or sign up again from it.
 | Service | Free allowance | Notes |
 | --- | --- | --- |
 | Static Web Apps | Always free | Blazor WebAssembly front end, incl. TLS + custom domain |
-| Azure Functions (Consumption) | 1M executions + 400k GB-s/month | Ratings API + the notification fan-out |
+| Azure Functions (Consumption) | 1M executions + 400k GB-s/month | Ratings API, the notification fan-out and the order receipts |
 | Container Apps | 180k vCPU-s, 360k GiB-s, 2M requests/month | Only stays free **with scale-to-zero** — see below |
 | Azure SQL | 100k vCore-s + 32 GB per DB, up to 10 DBs | Both databases fit; auto-pauses when exhausted |
 | Cosmos DB | 1000 RU/s + 25 GB | **One free-tier account per subscription** |
@@ -118,6 +124,7 @@ subscription of its own; you either transfer one in or sign up again from it.
 | Log Analytics | 5 GB/month ingest | Capped at 0.5 GB/day here to stay inside it |
 | Blob storage | 5 GB for 12 months | Then pennies |
 | **Service Bus** | **none** | No free tier at any SKU. Basic bills $0.05/million operations |
+| Mailjet (external) | 200 emails/day on its free plan | Order receipts only; not an Azure resource |
 | **API Management** | **none usable here** | **Developer tier, ~$50/month, no SLA.** Consumption is near-free but cannot host self-hosted gateways, which local dev and the tests depend on |
 
 Realistically **~$50/month**, and API Management is almost all of it — the one deliberately
@@ -202,6 +209,27 @@ Re-run it roughly monthly; an expired token shows up as the gateway container fa
 health check with a config-auth error in its logs. The dev container is persistent, so
 restart/recreate it after rotating. To force the YARP fallback:
 `dotnet user-secrets remove Apim:ConfigEndpoint --project Src/BikeBuilder.AppHost`.
+
+### Then: email (Mailjet)
+
+Order receipts are sent by the Function App's `SendOrderConfirmationEmail` through Mailjet's
+Send API. Locally the same function talks SMTP to the smtp4dev catcher the AppHost runs, so
+the provider is chosen by configuration: a Mailjet API key present means Mailjet, otherwise
+SMTP if a host is configured, otherwise the function logs and drops each receipt — which is
+what a deployment without keys does, harmlessly.
+
+```powershell
+./deploy.ps1 -SubscriptionId <your-subscription-id> -MailjetApiKey <key> -MailjetSecretKey <secret>
+```
+
+The script hands the pair to the deployment as environment variables (`BIKEBUILDER_MAILJET_API_KEY`,
+`BIKEBUILDER_MAILJET_SECRET_KEY`) that `main.bicepparam` reads, so no secret is ever written to a
+file. Set `emailFromAddress` / `emailFromName` in `main.bicepparam`; the address (or its domain)
+must be validated in the Mailjet account or every send is rejected and the message ends up in the
+`bikebuilder-order-emails` dead-letter subqueue after ten attempts. These are the first real
+secrets in the stack — everything else authenticates with the managed identity — and they land in
+the Function App's application settings; moving them behind Key Vault references is the obvious
+hardening step if the stack ever outgrows a portfolio deployment.
 
 ### Then: browser config
 

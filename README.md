@@ -21,7 +21,7 @@ guest-checkout storefront, and watch activity land in real time on a public site
 | `BikeBuilder.API.Ratings` | Azure Functions (.NET isolated) ratings microservice backed by Cosmos DB, JWT-secured via Auth0 |
 | `BikeBuilder.MCP` | Model Context Protocol server (Streamable HTTP at `/mcp`) exposing read-only tools over components, bike builds, orders and ratings. Owns no data — it calls the same three services the web apps do and forwards the caller's token to the role-gated order queries. Usable from Claude Code, VS Code, or the chat host below |
 | `BikeBuilder.API.Chat` | The admin app's assistant backend: runs a tool-calling loop (Microsoft.Extensions.AI + OllamaSharp) against a model served by the Ollama installed on the dev machine, with the MCP server's tools. Admin-only, reached through the gateway's `/chat` prefix |
-| `BikeBuilder.API.Notifications` | **Deploy-only — not part of the local AppHost topology.** Azure Functions fan-out that replaces the storefront's in-process SignalR hub when deployed, where scale-to-zero forbids an always-on consumer: a Service Bus trigger pushing to Azure SignalR Service in Serverless mode |
+| `BikeBuilder.API.Notifications` | Azure Functions (.NET isolated) consumers of the Service Bus queues. Everywhere: the order-confirmation email — a Service Bus trigger on its own queue, delivered by SMTP into the local smtp4dev catcher or, deployed, through Mailjet. Deployed only: the fan-out that replaces the storefront's in-process SignalR hub, where scale-to-zero forbids an always-on consumer, pushing to Azure SignalR Service in Serverless mode |
 | `BikeBuilder.Web.Public` | Blazor Web App public site rendering InteractiveAuto — the first visit runs on a server circuit while the WebAssembly runtime downloads, later visits run in the browser: the guest-checkout storefront (StrawberryShake GraphQL client) as its landing page, with live activity toasts (Service Bus → SignalR) owned by the layout so they follow you across every page |
 | `BikeBuilder.Web.Public.Client` | The storefront's WebAssembly half: a thin composition root that wires the shared storefront components to browser services (localStorage, origin-relative URLs) once pages run client-side |
 | `BikeBuilder.Web.Public.Shared` | Razor class library holding the entire storefront — pages, layout, catalog gRPC-Web and orders GraphQL clients — shared verbatim between the web storefront and the mobile app |
@@ -51,6 +51,7 @@ flowchart TB
         orders["orders<br/>GraphQL · :7400"]
         api["api<br/>gRPC catalog · :7100"]
         ratings["ratings<br/>Functions · :7071"]
+        notifications["notifications<br/>Functions · :7072"]
         chat["chat<br/>assistant · :7700"]
         mcp["mcp<br/>MCP tools · :7600"]
     end
@@ -59,8 +60,9 @@ flowchart TB
         sql[("SQL Server<br/>BikeBuilderDb<br/>BikeBuilderOrdersDb")]
         redis[("Redis<br/>draft carts · 1h TTL")]
         blob[("Azurite<br/>component-images")]
-        bus{{"Service Bus<br/>bikebuilder-notifications"}}
+        bus{{"Service Bus<br/>bikebuilder-notifications<br/>bikebuilder-order-emails"}}
         cosmos[("Cosmos<br/>ratings")]
+        smtp["smtp4dev<br/>mail catcher · UI :7800"]
     end
 
     web -->|gRPC-Web · GraphQL · REST| gateway
@@ -87,12 +89,14 @@ flowchart TB
     orders -->|price snapshot| api
     orders -->|carts| redis
     orders --> sql
-    orders -->|publish OrderPlaced| bus
+    orders -->|publish OrderPlaced,<br/>OrderConfirmationRequested| bus
     api --> sql
     api --> blob
     api -->|publish| bus
     ratings --> cosmos
     ratings -->|publish| bus
+    notifications -->|consume order emails| bus
+    notifications -->|SMTP :7825| smtp
 ```
 
 `Web.Public.Client` sits in the Browser box because that is where it ends up: the storefront
@@ -127,7 +131,7 @@ flowchart LR
         api["BikeBuilder.API<br/>owns Protos/*.proto"]
         orders["BikeBuilder.API.Orders"]
         ratings["BikeBuilder.API.Ratings"]
-        notifications["BikeBuilder.API.Notifications<br/>deploy-only"]
+        notifications["BikeBuilder.API.Notifications"]
         mcp["BikeBuilder.MCP"]
         chat["BikeBuilder.API.Chat"]
     end
@@ -185,17 +189,16 @@ A solid arrow means "references"; an arrow into the Shared box means the project
 both shared projects. Dashed arrows are **not** project references — those four compile
 `BikeBuilder.API`'s `.proto` files as gRPC *clients* through linked `<Protobuf>` items.
 
-Three absences are deliberate. `BikeBuilder.Web.Admin` references `Contracts` but not `ServiceDefaults`
-— a WebAssembly app has no server host to configure. The AppHost does not reference
-`BikeBuilder.API.Notifications` at all, which is why it never starts locally. And it does not
-reference `BikeBuilder.MobileApp` either — Aspire orchestrates processes, and an Android app
-isn't one; the mobile app is launched separately and simply points at the AppHost's endpoints.
+Two absences are deliberate. `BikeBuilder.Web.Admin` references `Contracts` but not `ServiceDefaults`
+— a WebAssembly app has no server host to configure. And the AppHost does not reference
+`BikeBuilder.MobileApp` — Aspire orchestrates processes, and an Android app isn't one; the
+mobile app is launched separately and simply points at the AppHost's endpoints.
 
 ## Running it
 
 Prerequisites: Docker Desktop, the .NET 10 SDK, and
 [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
-≥ 4.0.6280 (Aspire launches the Functions app through `func start`).
+≥ 4.0.6280 (Aspire launches the two Functions apps through `func start`).
 
 ```powershell
 dotnet run --project Src/BikeBuilder.AppHost
@@ -204,12 +207,16 @@ dotnet run --project Src/BikeBuilder.AppHost
 (or F5 on the AppHost project in Visual Studio, or `aspire run`). The Aspire dashboard opens
 automatically: every backing service and app with its endpoints, logs, and telemetry in one
 place. The web app is at https://localhost:7200, the public site at https://localhost:7300.
+Every email the system sends lands in the **smtp4dev** catcher at http://localhost:7800 — nothing
+leaves the machine.
 
 The emulator containers are persistent and keep their data across AppHost runs (SQL, blobs,
 and Cosmos documents survive a restart). Redis is the deliberate exception — it holds nothing
 but in-flight carts, which expire within the hour anyway, so it gets no data volume and starts
-empty every time. Auth is a real Auth0 tenant in local dev; integration tests swap in a stub
-OIDC issuer so they run fully offline.
+empty every time. One consequence of persistence: the Service Bus emulator reads its queue list
+once, at container start, so after pulling a change that adds a queue, remove the `servicebus`
+container pair (dashboard, or `docker rm -f`) and let the AppHost recreate it. Auth is a real
+Auth0 tenant in local dev; integration tests swap in a stub OIDC issuer so they run fully offline.
 
 Browser calls to the three APIs go through the **gateway** at http://localhost:7500. Out of
 the box that is the `BikeBuilder.Gateway` YARP stand-in; once Azure API Management is deployed
@@ -336,6 +343,16 @@ the layout owns the SignalR connection, not any one page — and, via the same h
 signed-in user of the web app. The web app's **In Process** page lists the carts currently held
 in Redis with a countdown to expiry, refreshing itself as they come and go.
 
+If the shopper left an email address, a **receipt** goes out too: the orders service publishes an
+`OrderConfirmationRequested` event — line items, totals, the ship-to address and the card summary,
+everything the email needs so nobody reads the orders database to write it — on its own queue
+(`bikebuilder-order-emails`; a second receiver on the notifications queue would compete with the
+toast fan-out, and Basic-tier Service Bus has no topics). `BikeBuilder.API.Notifications`
+consumes it and sends. Locally that is SMTP into the smtp4dev catcher at http://localhost:7800;
+deployed, Mailjet's Send API. A send that fails is redelivered up to ten times and then
+dead-lettered, and a failure to *queue* the receipt is logged rather than surfaced — the order is
+already placed by then.
+
 The orders GraphQL endpoint (with the Nitro IDE in dev) is at https://localhost:7400/graphql.
 
 ## The assistant (local AI)
@@ -405,7 +422,9 @@ The deployed topology differs from local dev in one structural way. Container Ap
 free with scale-to-zero, which forbids an always-on process, so the storefront's in-process
 SignalR hub and Service Bus consumer are replaced by `BikeBuilder.API.Notifications` — a
 Service Bus-triggered Function pushing through Azure SignalR Service in Serverless mode, where
-the service holds the client connections and nothing has to stay awake.
+the service holds the client connections and nothing has to stay awake. The same Function App
+sends the order receipts, through Mailjet instead of the local mail catcher — the API key pair is
+the one secret in the stack, passed via `deploy.ps1 -MailjetApiKey/-MailjetSecretKey`.
 
 > **Known gap:** `infra/resources.bicep` provisions no Redis, because Azure Cache for Redis has
 > no free tier. Draft carts therefore have nowhere to live, and the Orders service is
@@ -413,9 +432,10 @@ the service holds the client connections and nothing has to stay awake.
 
 ## Telemetry
 
-Every server app (API, Orders, Web.Public, Ratings, MCP, Chat) exports OpenTelemetry traces, metrics, and logs
+Every server app (API, Orders, Web.Public, Ratings, Notifications, MCP, Chat) exports OpenTelemetry traces, metrics, and logs
 over OTLP to the Aspire dashboard — open the Traces view to follow a single request across
-API → SQL/Blob → Service Bus → Web.Public → SignalR broadcast (the Service Bus consumer may
+API → SQL/Blob → Service Bus → Web.Public → SignalR broadcast, or a checkout across
+Orders → Service Bus → Notifications → SMTP (the Service Bus consumer may
 appear as a linked trace reference rather than a nested span — that's the messaging
 convention, click through it). An assistant question reads as one trace too: chat → the
 model calls (GenAI spans) → each MCP tool call → the service it queried. Telemetry is
@@ -430,8 +450,9 @@ dotnet test Src/BikeBuilder.Test.Integration
 Four end-to-end tests cover the whole journey: one logs in, creates a component with an image,
 builds a bike, rates it, and verifies the component, build and rating toasts land live on the
 public site; another buys from the storefront as a guest, checks the open cart shows on the
-web app's In Process page and is gone once processed, and verifies the order toast on both the
-public site and the signed-in web app; the third exercises the role system — as the Admin it
+web app's In Process page and is gone once processed, verifies the order toast on both the
+public site and the signed-in web app, and reads the confirmation email back out of the smtp4dev
+catcher's API; the third exercises the role system — as the Admin it
 creates an OrderViewer user through the Admin page, signs in as that user in a fresh browser
 context, and checks the nav is trimmed to the order sections and a direct hit on /components
 lands on the "Not authorized" page; the fourth opens the assistant window, checks it reaches its

@@ -52,6 +52,8 @@ builder.Services.AddScoped<DraftOrderStore>();
 builder.AddAzureServiceBusClient("servicebus");
 builder.Services.AddSingleton(sp => sp.GetRequiredService<ServiceBusClient>().CreateSender(ServiceBusQueueNames.Notifications));
 builder.Services.AddSingleton<IEventPublisher, ServiceBusEventPublisher>();
+// Second queue, own publisher - see the class for why it isn't a second IEventPublisher.
+builder.Services.AddSingleton<OrderConfirmationEmailPublisher>();
 
 // Catalog price snapshots go over gRPC-Web unary calls to the API's anonymous read
 // endpoints. GrpcChannel can't parse the https+http service-discovery scheme (that

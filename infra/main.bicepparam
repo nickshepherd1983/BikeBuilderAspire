@@ -24,6 +24,15 @@ param auth0Audience = 'https://bikebuilder-api'
 param publisherEmail = 'you@example.com'
 param publisherName = 'BikeBuilder'
 
+// Order receipts via Mailjet. The keys come from the environment rather than this file so
+// they never land in git: `deploy.ps1 -MailjetApiKey ... -MailjetSecretKey ...` sets them
+// for the deployment. Both empty (the default) deploys with email switched off. The sender
+// address must be a validated sender or domain in the Mailjet account.
+param mailjetApiKey = readEnvironmentVariable('BIKEBUILDER_MAILJET_API_KEY', '')
+param mailjetSecretKey = readEnvironmentVariable('BIKEBUILDER_MAILJET_SECRET_KEY', '')
+param emailFromAddress = 'orders@example.com'
+param emailFromName = 'BikeBuilder'
+
 // Container images. Point these at your public GitHub Container Registry packages once the
 // build workflow has pushed them; the placeholder default lets the first deploy succeed.
 // param apiImage = 'ghcr.io/nickshepherd1983/bikebuilder-api:latest'
