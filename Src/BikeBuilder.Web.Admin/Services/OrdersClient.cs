@@ -7,17 +7,36 @@ namespace BikeBuilder.Web.Admin.Services;
 // RatingsClient REST pattern the rest of this app uses.
 public class OrdersClient(HttpClient http)
 {
-  // Placed orders, out of SQL.
+  // Placed orders, out of SQL. Ship-to, shipping and the card summary are checkout-time
+  // snapshots; the billing address exists too but the table has no room for it.
   const string OrdersQuery = """
       query Orders {
         orders {
           id
           customerName
           customerEmail
+          customerPhone
           status
           createdAt
           placedAt
+          subtotal
+          shippingCost
+          shippingMethod
           total
+          shippingAddress {
+            fullName
+            line1
+            line2
+            city
+            state
+            postalCode
+            country
+          }
+          payment {
+            summary
+            expiryMonth
+            expiryYear
+          }
           items {
             productType
             productName
@@ -81,15 +100,35 @@ public class OrdersClient(HttpClient http)
   sealed record GraphQLError(string Message);
 }
 
+// Total is what the shopper paid: Subtotal (the items) plus ShippingCost.
 public sealed record OrderDto(
     int Id,
     string CustomerName,
     string? CustomerEmail,
+    string? CustomerPhone,
     string Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset? PlacedAt,
+    decimal Subtotal,
+    decimal ShippingCost,
+    string ShippingMethod,
     decimal Total,
+    AddressDto ShippingAddress,
+    PaymentDto Payment,
     List<OrderItemDto> Items);
+
+public sealed record AddressDto(
+    string FullName,
+    string Line1,
+    string? Line2,
+    string City,
+    string State,
+    string PostalCode,
+    string Country);
+
+// Summary is the "Visa •••• 4242" line the orders service builds; nothing else about the
+// card is available, by design.
+public sealed record PaymentDto(string Summary, int ExpiryMonth, int ExpiryYear);
 
 // Ids are Guids here, not ints: drafts live in Redis and get their id there, and an order
 // is renumbered by SQL's identity column when it's finally placed.

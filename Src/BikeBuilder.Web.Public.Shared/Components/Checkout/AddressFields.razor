@@ -1,0 +1,26 @@
+@* One address block. Used twice on the checkout page (ship-to, bill-to); the wrapper id lets
+   tests and styles scope to a particular block while the field labels stay the same in both. *@
+<div id="@Id">
+    <MudTextField @bind-Value="Address.FullName" Label="Full name" Required="true" RequiredError="Full name is required" />
+    <MudTextField @bind-Value="Address.Line1" Label="Address line 1" Required="true" RequiredError="Address is required" Class="mt-3" />
+    <MudTextField @bind-Value="Address.Line2" Label="Address line 2 (optional)" Class="mt-3" />
+    <MudGrid Class="mt-1">
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Address.City" Label="City" Required="true" RequiredError="City is required" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Address.State" Label="State / Province" Required="true" RequiredError="State is required" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Address.PostalCode" Label="Postal code" Required="true" RequiredError="Postal code is required" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Address.Country" Label="Country" Required="true" RequiredError="Country is required" />
+        </MudItem>
+    </MudGrid>
+</div>
+
+@code {
+  [Parameter, EditorRequired] public AddressModel Address { get; set; } = null!;
+  [Parameter, EditorRequired] public string Id { get; set; } = null!;
+}

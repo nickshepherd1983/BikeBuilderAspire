@@ -8,6 +8,7 @@ type Query {
   orders: [Order!]!
   draftOrder(id: UUID!): DraftOrder
   draftOrders: [DraftOrder!]!
+  shippingOptions: [ShippingOption!]!
 }
 
 type Mutation {
@@ -19,7 +20,7 @@ type Mutation {
     quantity: Int!
   ): DraftOrder!
   removeOrderItem(orderId: UUID!, orderItemId: UUID!): DraftOrder!
-  processOrder(orderId: UUID!): Order!
+  processOrder(orderId: UUID!, checkout: CheckoutInput!): Order!
 }
 
 "Defines when a policy shall be executed."
@@ -41,10 +42,17 @@ type Order {
   id: Int!
   customerName: String!
   customerEmail: String
+  customerPhone: String
   status: OrderStatus!
   createdAt: DateTime!
   placedAt: DateTime
+  shippingAddress: Address!
+  billingAddress: Address!
+  shippingMethod: ShippingMethod!
+  shippingCost: Decimal!
+  payment: PaymentCard!
   items: [OrderItem!]!
+  subtotal: Decimal!
   total: Decimal!
 }
 
@@ -57,6 +65,34 @@ type OrderItem {
   unitPrice: Decimal!
   quantity: Int!
   lineTotal: Decimal!
+}
+
+type Address {
+  fullName: String!
+  line1: String!
+  line2: String
+  city: String!
+  state: String!
+  postalCode: String!
+  country: String!
+}
+
+type PaymentCard {
+  brand: String!
+  last4: String!
+  expiryMonth: Int!
+  expiryYear: Int!
+  cardholderName: String!
+  summary: String!
+}
+
+type ShippingOption {
+  method: ShippingMethod!
+  name: String!
+  description: String!
+  price: Decimal!
+  minDays: Int!
+  maxDays: Int!
 }
 
 type DraftOrder {
@@ -79,6 +115,34 @@ type DraftOrderItem {
   lineTotal: Decimal!
 }
 
+input CheckoutInput {
+  customerName: String!
+  customerEmail: String
+  customerPhone: String
+  shippingAddress: AddressInput!
+  billingAddress: AddressInput
+  shippingMethod: ShippingMethod!
+  card: CardInput!
+}
+
+input AddressInput {
+  fullName: String!
+  line1: String!
+  line2: String
+  city: String!
+  state: String!
+  postalCode: String!
+  country: String!
+}
+
+input CardInput {
+  number: String!
+  cardholderName: String!
+  expiryMonth: Int!
+  expiryYear: Int!
+  cvc: String!
+}
+
 "The `DateTime` scalar type represents a date and time with time zone offset information."
 scalar DateTime
 
@@ -87,6 +151,12 @@ scalar UUID
 enum OrderStatus {
   DRAFT
   PLACED
+}
+
+enum ShippingMethod {
+  STANDARD
+  EXPRESS
+  OVERNIGHT
 }
 
 "The `Decimal` scalar type represents a decimal floating-point number with high precision."

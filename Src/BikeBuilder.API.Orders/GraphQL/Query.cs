@@ -30,4 +30,8 @@ public static class Query
   [Authorize(Policies.ViewOrders)]
   public static Task<List<DraftOrder>> GetDraftOrders(DraftOrderStore store) =>
       store.ListAsync();
+
+  // Anonymous: the checkout page renders its shipping choices from this so the prices shown
+  // and the price charged (ProcessOrder reads the same list) can't drift apart.
+  public static IReadOnlyList<ShippingOption> GetShippingOptions() => ShippingOptions.All;
 }

@@ -22,6 +22,7 @@ else
             <MudTh>Customer</MudTh>
             <MudTh>Status</MudTh>
             <MudTh>Placed</MudTh>
+            <MudTh>Ship to</MudTh>
             <MudTh>Items</MudTh>
             <MudTh Style="text-align: right;">Total</MudTh>
         </HeaderContent>
@@ -33,6 +34,10 @@ else
                 {
                     <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.CustomerEmail</MudText>
                 }
+                @if (context.CustomerPhone is not null)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.CustomerPhone</MudText>
+                }
             </MudTd>
             <MudTd DataLabel="Status">
                 <MudChip T="string" Size="Size.Small"
@@ -41,13 +46,28 @@ else
                 </MudChip>
             </MudTd>
             <MudTd DataLabel="Placed">@(context.PlacedAt?.LocalDateTime.ToString("g") ?? "—")</MudTd>
+            <MudTd DataLabel="Ship to">
+                <MudText Typo="Typo.body2">@context.ShippingAddress.FullName</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.ShippingAddress.Line1</MudText>
+                @if (context.ShippingAddress.Line2 is not null)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.ShippingAddress.Line2</MudText>
+                }
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.ShippingAddress.City, @context.ShippingAddress.State @context.ShippingAddress.PostalCode</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.ShippingAddress.Country</MudText>
+            </MudTd>
             <MudTd DataLabel="Items">
                 @foreach (var item in context.Items)
                 {
                     <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity — @item.LineTotal.ToString("C2")</MudText>
                 }
             </MudTd>
-            <MudTd DataLabel="Total" Style="text-align: right;">@context.Total.ToString("C2")</MudTd>
+            <MudTd DataLabel="Total" Style="text-align: right;">
+                <MudText Typo="Typo.body2">@context.Total.ToString("C2")</MudText>
+                @* Shipping is folded into the total; the caption says how much of it and how it ships. *@
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@FormatStatus(context.ShippingMethod) shipping @context.ShippingCost.ToString("C2")</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.Payment.Summary</MudText>
+            </MudTd>
         </RowTemplate>
     </MudTable>
 }

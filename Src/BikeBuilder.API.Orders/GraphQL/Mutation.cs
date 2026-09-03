@@ -66,10 +66,28 @@ public static class Mutation
     return draft;
   }
 
-  public static async Task<Order> ProcessOrder(Guid orderId,
+  public static async Task<Order> ProcessOrder(Guid orderId, CheckoutInput checkout,
       DraftOrderStore store, OrdersDbContext db, [Service] IEventPublisher eventPublisher,
       CancellationToken cancellationToken)
   {
+    // Validate the form and authorize the card BEFORE claiming the draft: a rejected checkout
+    // (typo in the address, declined card) must leave the cart exactly where it was, and
+    // nothing below the claim has a failure path that isn't the shopper's fault.
+    PaymentCard payment;
+    try
+    {
+      checkout = CheckoutValidator.Validate(checkout);
+      payment = FakeCardProcessor.Authorize(
+          checkout.Card.Number, checkout.Card.CardholderName, checkout.Card.ExpiryMonth, checkout.Card.ExpiryYear,
+          checkout.Card.Cvc, DateOnly.FromDateTime(DateTime.UtcNow));
+    }
+    catch (CheckoutException ex)
+    {
+      throw Error(ex.Message, ex.Code);
+    }
+    // Priced here, from the server's list - the client only names the method.
+    var shipping = ShippingOptions.Get(checkout.ShippingMethod);
+
     // Claim rather than read: GETDEL hands the cart to exactly one caller, which is what
     // stops a concurrent double-process from placing the order twice. (The old SQL draft row
     // relied on its rowversion token for the same guarantee.)
@@ -85,11 +103,20 @@ public static class Mutation
     }
 
     // The draft's Guid stays behind in Redis; the placed order gets SQL's identity id, and
-    // that's the id the back office and the OrderPlaced event use from here on.
+    // that's the id the back office and the OrderPlaced event use from here on. The
+    // checkout form is the final word on who the customer is - the name typed at
+    // add-to-cart time was only a placeholder for the In Process view.
     var order = new Order
     {
-      CustomerName = draft.CustomerName,
-      CustomerEmail = draft.CustomerEmail,
+      CustomerName = checkout.CustomerName,
+      CustomerEmail = checkout.CustomerEmail,
+      CustomerPhone = checkout.CustomerPhone,
+      ShippingAddress = ToAddress(checkout.ShippingAddress),
+      // A second instance even when "same as shipping": EF owns each navigation separately.
+      BillingAddress = ToAddress(checkout.BillingAddress ?? checkout.ShippingAddress),
+      ShippingMethod = shipping.Method,
+      ShippingCost = shipping.Price,
+      Payment = payment,
       CreatedAt = draft.CreatedAt,
       Status = OrderStatus.Placed,
       PlacedAt = DateTimeOffset.UtcNow
@@ -115,11 +142,29 @@ public static class Mutation
       CustomerName = order.CustomerName,
       Total = order.Total,
       ItemCount = order.Items.Sum(i => i.Quantity),
-      CreatedAt = order.PlacedAt.Value
+      CreatedAt = order.PlacedAt.Value,
+      Subtotal = order.Subtotal,
+      ShippingCost = order.ShippingCost,
+      ShippingMethod = shipping.Name,
+      ShipToCity = order.ShippingAddress.City,
+      ShipToState = order.ShippingAddress.State,
+      ShipToCountry = order.ShippingAddress.Country,
+      PaymentSummary = order.Payment.Summary
     }, cancellationToken);
 
     return order;
   }
+
+  static Address ToAddress(AddressInput input) => new()
+  {
+    FullName = input.FullName,
+    Line1 = input.Line1,
+    Line2 = input.Line2,
+    City = input.City,
+    State = input.State,
+    PostalCode = input.PostalCode,
+    Country = input.Country
+  };
 
   // A missing key is indistinguishable from an expired one, so both surface as ORDER_NOT_FOUND.
   static async Task<DraftOrder> GetDraftAsync(Guid orderId, DraftOrderStore store) =>

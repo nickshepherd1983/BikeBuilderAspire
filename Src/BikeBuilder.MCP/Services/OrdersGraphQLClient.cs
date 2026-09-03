@@ -8,10 +8,26 @@ public class OrdersGraphQLClient(HttpClient _http)
       id
       customerName
       customerEmail
+      customerPhone
       status
       createdAt
       placedAt
+      subtotal
+      shippingCost
+      shippingMethod
       total
+      shippingAddress {
+        fullName
+        line1
+        line2
+        city
+        state
+        postalCode
+        country
+      }
+      payment {
+        summary
+      }
       items {
         productType
         productId
@@ -112,15 +128,34 @@ public class OrdersGraphQLClient(HttpClient _http)
   }
 }
 
+// Total is what the shopper paid: Subtotal (the items) plus ShippingCost.
 public sealed record OrderDto(
     int Id,
     string CustomerName,
     string? CustomerEmail,
+    string? CustomerPhone,
     string Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset? PlacedAt,
+    decimal Subtotal,
+    decimal ShippingCost,
+    string ShippingMethod,
     decimal Total,
+    AddressDto ShippingAddress,
+    PaymentDto Payment,
     List<OrderItemDto> Items);
+
+public sealed record AddressDto(
+    string FullName,
+    string Line1,
+    string? Line2,
+    string City,
+    string State,
+    string PostalCode,
+    string Country);
+
+// The orders service keeps only a display summary of the card ("Visa •••• 4242").
+public sealed record PaymentDto(string Summary);
 
 // Ids are Guids here, not ints: drafts live in Redis and get their id there, and an order is
 // renumbered by SQL's identity column when it's finally placed.

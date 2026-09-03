@@ -68,9 +68,7 @@ public class StorePage(IPage page, string baseUrl)
   public Task RemoveItemAsync(string productName) =>
       CartItem(productName).GetByRole(AriaRole.Button).ClickAsync();
 
-  public Task ProcessOrderAsync() =>
-      page.GetByRole(AriaRole.Button, new() { Name = "Process order" }).ClickAsync();
-
-  public Task WaitForOrderConfirmationAsync(string buyerName, float timeout = 30_000) =>
-      ToastHelper.WaitForToastAsync(page, $"Order placed — thanks, {buyerName}!", timeout);
+  // Placing the order happens on the checkout page (CheckoutPage), which this hands over to.
+  public Task GoToCheckoutAsync() =>
+      page.GetByRole(AriaRole.Button, new() { Name = "Checkout", Exact = true }).ClickAsync();
 }

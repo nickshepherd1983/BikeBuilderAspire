@@ -18,9 +18,11 @@ public sealed class DataGuideTools
       most/least expensive), get_bike_build (the component list).
 
       ORDERS - customer purchases from the public storefront. A placed order has an integer id, customer
-      name/email, status, timestamps, a total and line items; each item snapshots the product name and
-      unit price at purchase time and refers to a catalog product by productType (COMPONENT or
-      BIKE_BUILD) and productId. Draft orders are carts still being filled in (Guid ids, an expiry).
+      name/email/phone, status, timestamps, a shipping address (shipTo), shipping method and cost, a
+      subtotal (the items), a total (subtotal + shipping), the card used (brand and last four digits
+      only) and line items; each item snapshots the product name and unit price at purchase time and
+      refers to a catalog product by productType (COMPONENT or BIKE_BUILD) and productId. Draft orders
+      are carts still being filled in (Guid ids, an expiry) and have none of the checkout details yet.
       Only the 100 most recent placed orders are available. Tools: list_orders, get_order,
       list_draft_orders, orders_summary (revenue, counts, top products and customers - use this for
       any totals or "best selling" question). Order tools need the caller to be signed in with the

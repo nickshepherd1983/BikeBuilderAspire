@@ -75,11 +75,32 @@ public sealed class OrdersTools(OrdersGraphQLClient _orders)
       order.Id,
       order.CustomerName,
       order.CustomerEmail,
+      order.CustomerPhone,
       order.Status,
       ToolSupport.Date(order.CreatedAt),
       ToolSupport.Date(order.PlacedAt),
+      ToolSupport.Money(order.Subtotal),
+      FormatShippingMethod(order.ShippingMethod),
+      ToolSupport.Money(order.ShippingCost),
       ToolSupport.Money(order.Total),
+      FormatAddress(order.ShippingAddress),
+      order.Payment.Summary,
       [.. order.Items.Select(ToView)]);
+
+  // GraphQL serializes the enum as SCREAMING_SNAKE ("EXPRESS") - hand the model a word.
+  static string FormatShippingMethod(string method) =>
+      method.Length == 0 ? method : char.ToUpperInvariant(method[0]) + method[1..].ToLowerInvariant();
+
+  // One line, the way it would print on a label, so the model doesn't have to assemble it.
+  static string FormatAddress(AddressDto address) =>
+      string.Join(", ", new[]
+      {
+        address.FullName,
+        address.Line1,
+        address.Line2,
+        $"{address.City}, {address.State} {address.PostalCode}",
+        address.Country
+      }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
   static DraftOrderView ToView(DraftOrderDto draft) => new(
       draft.Id,
@@ -100,14 +121,22 @@ public sealed class OrdersTools(OrdersGraphQLClient _orders)
 }
 
 // Money and dates are pre-formatted strings ($1,234.56 and MM/dd/yyyy HH:mm UTC) - see ToolSupport.
+// Total = Subtotal (the items) + ShippingCost. ShipTo is the shipping address on one line;
+// Payment is the card summary ("Visa •••• 4242") - the service stores nothing more about it.
 public sealed record OrderView(
     int Id,
     string CustomerName,
     string? CustomerEmail,
+    string? CustomerPhone,
     string Status,
     string CreatedAt,
     string? PlacedAt,
+    string Subtotal,
+    string ShippingMethod,
+    string ShippingCost,
     string Total,
+    string ShipTo,
+    string Payment,
     IReadOnlyList<OrderItemView> Items);
 
 public sealed record DraftOrderView(

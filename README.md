@@ -311,7 +311,16 @@ configured:
 
 The storefront is the public site's landing page at https://localhost:7300 (`/store` still
 routes there): browse components and bike builds (prices come from the catalog; images are
-proxied same-origin), add them to a cart, and check out as a guest — just a name, no account.
+proxied same-origin), add them to a cart, and check out as a guest — a name to start, no account.
+
+**Checkout** (`/checkout`) collects contact details, a shipping address (billing defaults to
+the same), a shipping method — Standard $9.99, Express $24.99 or Overnight $49.99, priced by
+the orders service so the client can't undercut it — and a card. Payment is fake: the service
+runs the checks a gateway would (Luhn, expiry, CVC) and decides deterministically. Any number
+that passes Luhn is approved (`4242 4242 4242 4242` is the classic; there's a "Use a test card"
+link), and `4000 0000 0000 0002` is always declined. Only the brand, last four digits and expiry
+are stored — the full number and CVC never leave the request. Validation and authorization
+happen *before* the cart is claimed, so a declined card leaves the cart exactly as it was.
 
 A cart is a draft order held in **Redis**, not a database row, under a one-hour TTL that slides
 on every add or remove — so an active shopper never loses their cart, and abandoned ones clean
@@ -320,7 +329,9 @@ number orders independently (drafts by Guid, placed orders by SQL identity), so 
 renumbered at checkout; the storefront drops the draft id at that point, so this is invisible
 to the shopper.
 
-Processing publishes an `OrderPlaced` event. The toast lands on every page of the public site —
+Placing the order publishes an `OrderPlaced` event to Service Bus carrying the order id,
+customer, item count, subtotal, shipping method and cost, grand total, the ship-to city/state/
+country and the card summary (`Visa •••• 4242`). The toast lands on every page of the public site —
 the layout owns the SignalR connection, not any one page — and, via the same hub, for every
 signed-in user of the web app. The web app's **In Process** page lists the carts currently held
 in Redis with a countdown to expiry, refreshing itself as they come and go.

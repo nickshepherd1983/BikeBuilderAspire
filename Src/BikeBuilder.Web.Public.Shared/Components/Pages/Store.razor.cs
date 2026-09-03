@@ -9,6 +9,7 @@ public partial class Store(
     OrderState _orderState,
     IProductImageUrlProvider _imageUrls,
     IDialogService _dialogService,
+    NavigationManager _navigation,
     ISnackbar _snackbar)
 {
   const int PageSize = 12;
@@ -16,13 +17,12 @@ public partial class Store(
   int _tabIndex;
   string? _search;
   bool _loading = true;
-  bool _processing;
   int _page = 1;
   int _totalCount;
   IReadOnlyList<CatalogProduct> _products = [];
   // The generated fragment interface for the in-progress cart - every draft-returning
-  // operation in Orders.graphql implements it. Processing answers with a placed Order
-  // instead, which is why that one result isn't assigned back here.
+  // operation in Orders.graphql implements it. Placing the order happens on the Checkout
+  // page, which is why nothing here ever holds a placed Order.
   IDraftOrderParts? _order;
 
   int PageCount => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
@@ -55,7 +55,8 @@ public partial class Store(
 
     if (_order is null)
     {
-      var dialog = await _dialogService.ShowAsync<GuestDetailsDialog>("Checkout details");
+      // Just a name to label the cart with - addresses and payment wait for the checkout page.
+      var dialog = await _dialogService.ShowAsync<GuestDetailsDialog>("Start your order");
       var dialogResult = await dialog.Result;
       if (dialogResult is null || dialogResult.Canceled || dialogResult.Data is not GuestDetails guest)
         return;
@@ -87,27 +88,8 @@ public partial class Store(
       _order = data.RemoveOrderItem;
   }
 
-  async Task ProcessOrderAsync()
-  {
-    if (_order is null)
-      return;
-
-    _processing = true;
-    try
-    {
-      var result = await _ordersClient.ProcessOrder.ExecuteAsync(_order.Id);
-      if (!TryGetData(result, out var data))
-        return;
-
-      _snackbar.Add($"Order placed — thanks, {data.ProcessOrder.CustomerName}!", Severity.Success);
-      _order = null;
-      await _orderState.ClearAsync();
-    }
-    finally
-    {
-      _processing = false;
-    }
-  }
+  // The checkout page re-reads the draft from storage, so nothing needs handing over.
+  void GoToCheckout() => _navigation.NavigateTo("checkout");
 
   async Task OnSearchAsync(string value)
   {
@@ -156,8 +138,4 @@ public partial class Store(
     data = result.Data!;
     return true;
   }
-
-  // Invariant "$" formatting keeps prices identical across machines (the integration test
-  // asserts on cart totals).
-  static string FormatPrice(decimal value) => $"${value.ToString("N2", CultureInfo.InvariantCulture)}";
 }

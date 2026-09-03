@@ -1,0 +1,145 @@
+@page "/checkout"
+@using BikeBuilder.Web.Public.Components.Checkout
+
+<PageTitle>Checkout</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Checkout</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Class="ma-8" />
+}
+else if (_placed is not null)
+{
+    @* Confirmation replaces the form in place: the draft id is gone from storage by now, so a
+       reload lands the visitor on an empty cart rather than back here. *@
+    <MudCard Class="checkout-confirmation" Style="max-width: 640px;">
+        <MudCardContent>
+            <MudText Typo="Typo.h5" GutterBottom="true">Thanks, @_placed.CustomerName!</MudText>
+            <MudText Class="mb-3">Your order <b>#@_placed.Id</b> is confirmed@(_placed.CustomerEmail is null ? "." : $" — a receipt is on its way to {_placed.CustomerEmail}.")</MudText>
+
+            <MudText Typo="Typo.subtitle2">Shipping to</MudText>
+            <MudText Typo="Typo.body2">@_placed.ShippingAddress.FullName</MudText>
+            <MudText Typo="Typo.body2">@_placed.ShippingAddress.Line1</MudText>
+            @if (_placed.ShippingAddress.Line2 is not null)
+            {
+                <MudText Typo="Typo.body2">@_placed.ShippingAddress.Line2</MudText>
+            }
+            <MudText Typo="Typo.body2">@_placed.ShippingAddress.City, @_placed.ShippingAddress.State @_placed.ShippingAddress.PostalCode</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">@_placed.ShippingAddress.Country</MudText>
+
+            <MudText Typo="Typo.subtitle2">Delivery</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">@ShippingName(_placed.ShippingMethod) shipping, @ShippingEta(_placed.ShippingMethod) — @PriceFormat.Format(_placed.ShippingCost)</MudText>
+
+            <MudText Typo="Typo.subtitle2">Payment</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">@_placed.Payment.Summary</MudText>
+
+            <MudText Typo="Typo.h6">Total: @PriceFormat.Format(_placed.Total)</MudText>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/">Continue shopping</MudButton>
+        </MudCardActions>
+    </MudCard>
+}
+else if (_draft is not null)
+{
+    <MudGrid>
+        <MudItem xs="12" md="7">
+            <MudForm @ref="_form">
+                <MudCard Class="mb-4">
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6" GutterBottom="true">Contact</MudText>
+                        <MudTextField @bind-Value="_model.Name" Label="Your name" Required="true" RequiredError="Name is required" />
+                        <MudTextField @bind-Value="_model.Email" Label="Email (optional)" InputType="InputType.Email"
+                                      Validation="@(new Func<string?, string?>(CheckoutModel.ValidateEmail))" Class="mt-3" />
+                        <MudTextField @bind-Value="_model.Phone" Label="Phone (optional)" InputType="InputType.Telephone" Class="mt-3" />
+                    </MudCardContent>
+                </MudCard>
+
+                <MudCard Class="mb-4">
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6" GutterBottom="true">Shipping address</MudText>
+                        <AddressFields Address="_model.Shipping" Id="shipping-address" />
+                        <MudCheckBox @bind-Value="_model.BillingSameAsShipping" Label="Billing address is the same as shipping" Class="mt-3" />
+                    </MudCardContent>
+                </MudCard>
+
+                @if (!_model.BillingSameAsShipping)
+                {
+                    <MudCard Class="mb-4">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6" GutterBottom="true">Billing address</MudText>
+                            <AddressFields Address="_model.Billing" Id="billing-address" />
+                        </MudCardContent>
+                    </MudCard>
+                }
+
+                <MudCard Class="mb-4">
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6" GutterBottom="true">Shipping method</MudText>
+                        <MudRadioGroup T="ShippingMethod" @bind-Value="_model.ShippingMethod">
+                            @foreach (var option in _shippingOptions)
+                            {
+                                <MudRadio T="ShippingMethod" Value="option.Method" Class="d-flex">
+                                    <b>@option.Name</b> — @option.Description, @Eta(option) · @PriceFormat.Format(option.Price)
+                                </MudRadio>
+                            }
+                        </MudRadioGroup>
+                    </MudCardContent>
+                </MudCard>
+
+                <MudCard>
+                    <MudCardContent>
+                        <div class="d-flex align-center justify-space-between">
+                            <MudText Typo="Typo.h6">Payment</MudText>
+                            @* Demo store: nothing is charged. This fills Stripe's classic test card. *@
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="UseTestCard">Use a test card</MudButton>
+                        </div>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-2">
+                            This is a demo — no real payment is taken. Any number that passes the Luhn check works; 4000 0000 0000 0002 is always declined.
+                        </MudText>
+                        <MudTextField @bind-Value="_model.CardNumber" Label="Card number" Required="true" RequiredError="Card number is required"
+                                      Validation="@(new Func<string?, string?>(CheckoutModel.ValidateCardNumber))" Placeholder="4242 4242 4242 4242" />
+                        <MudTextField @bind-Value="_model.CardholderName" Label="Name on card" Required="true" RequiredError="Name on card is required" Class="mt-3" />
+                        <MudGrid Class="mt-1">
+                            <MudItem xs="6">
+                                <MudTextField @bind-Value="_model.CardExpiry" Label="Expiry (MM/YY)" Required="true" RequiredError="Expiry is required"
+                                              Validation="@(new Func<string?, string?>(CheckoutModel.ValidateExpiry))" Placeholder="12/30" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudTextField @bind-Value="_model.CardCvc" Label="CVC" Required="true" RequiredError="CVC is required"
+                                              Validation="@(new Func<string?, string?>(CheckoutModel.ValidateCvc))" InputType="InputType.Password" Placeholder="123" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+            </MudForm>
+        </MudItem>
+
+        <MudItem xs="12" md="5">
+            <MudCard id="order-summary">
+                <MudCardContent>
+                    <MudText Typo="Typo.h5" GutterBottom="true">Your order</MudText>
+                    <MudList T="string" Dense="true">
+                        @foreach (var item in _draft.Items)
+                        {
+                            <MudListItem T="string" @key="item.Id">
+                                <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                                    <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity</MudText>
+                                    <MudText Typo="Typo.body2">@PriceFormat.Format(item.LineTotal)</MudText>
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.body2">Subtotal: @PriceFormat.Format(_draft.Total)</MudText>
+                    <MudText Typo="Typo.body2">Shipping: @PriceFormat.Format(SelectedShippingCost)</MudText>
+                    <MudText Typo="Typo.h6" Class="mt-2">Total: @PriceFormat.Format(_draft.Total + SelectedShippingCost)</MudText>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" Class="mt-3"
+                               Disabled="_submitting" OnClick="PlaceOrderAsync">Place order</MudButton>
+                    <MudButton Variant="Variant.Text" FullWidth="true" Class="mt-1" Href="/">Back to the store</MudButton>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}

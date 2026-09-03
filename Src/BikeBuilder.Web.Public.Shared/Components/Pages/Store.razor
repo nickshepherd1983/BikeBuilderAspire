@@ -42,7 +42,7 @@
                             <MudCardContent Style="flex: 1;">
                                 <MudText Typo="Typo.h6">@product.Name</MudText>
                                 <MudText Typo="Typo.body2" Class="mud-text-secondary">@product.Description</MudText>
-                                <MudText Typo="Typo.subtitle1" Class="mt-2">@FormatPrice(product.Price)</MudText>
+                                <MudText Typo="Typo.subtitle1" Class="mt-2">@PriceFormat.Format(product.Price)</MudText>
                             </MudCardContent>
                             <MudCardActions>
                                 <MudButton Color="Color.Primary" Variant="Variant.Filled"
@@ -75,7 +75,7 @@
                                wrong item's remove handler. *@
                             <MudListItem T="string" @key="item.Id">
                                 <div class="d-flex align-center justify-space-between" style="width: 100%;">
-                                    <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity — @FormatPrice(item.LineTotal)</MudText>
+                                    <MudText Typo="Typo.body2">@item.ProductName × @item.Quantity — @PriceFormat.Format(item.LineTotal)</MudText>
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                                    aria-label="@($"Remove {item.ProductName}")"
                                                    OnClick="() => RemoveItemAsync(item)" />
@@ -83,9 +83,9 @@
                             </MudListItem>
                         }
                     </MudList>
-                    <MudText Typo="Typo.h6" Class="mt-2">Total: @FormatPrice(_order.Total)</MudText>
+                    <MudText Typo="Typo.h6" Class="mt-2">Total: @PriceFormat.Format(_order.Total)</MudText>
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" Class="mt-3"
-                               Disabled="_processing" OnClick="ProcessOrderAsync">Process order</MudButton>
+                               OnClick="GoToCheckout">Checkout</MudButton>
                 }
             </MudCardContent>
         </MudCard>

@@ -21,7 +21,7 @@ public partial class Orders(OrdersClient _ordersClient, ISnackbar _snackbar)
     }
   }
 
-  // GraphQL serializes the enum as SCREAMING_SNAKE ("PLACED") - display it as a word.
+  // GraphQL serializes enums as SCREAMING_SNAKE ("PLACED", "EXPRESS") - display them as words.
   static string FormatStatus(string status) =>
       status.Length == 0 ? status : char.ToUpperInvariant(status[0]) + status[1..].ToLowerInvariant();
 }

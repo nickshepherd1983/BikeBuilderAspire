@@ -15,17 +15,49 @@ fragment DraftOrderParts on DraftOrder {
 }
 
 # Processing swaps the Redis draft for a real SQL order, so that one mutation answers with
-# the placed Order rather than a draft - hence its own fragment.
+# the placed Order rather than a draft - hence its own fragment. It carries what the
+# confirmation panel shows; the billing address and card expiry stay server-side.
 fragment PlacedOrderParts on Order {
   id
   customerName
+  customerEmail
   status
+  subtotal
+  shippingCost
+  shippingMethod
   total
+  shippingAddress {
+    fullName
+    line1
+    line2
+    city
+    state
+    postalCode
+    country
+  }
+  payment {
+    brand
+    last4
+    summary
+  }
 }
 
 query GetDraftOrder($id: UUID!) {
   draftOrder(id: $id) {
     ...DraftOrderParts
+  }
+}
+
+# The checkout page's shipping radio buttons. Prices come from the server so what's shown
+# is what processOrder charges.
+query GetShippingOptions {
+  shippingOptions {
+    method
+    name
+    description
+    price
+    minDays
+    maxDays
   }
 }
 
@@ -47,8 +79,8 @@ mutation RemoveOrderItem($orderId: UUID!, $orderItemId: UUID!) {
   }
 }
 
-mutation ProcessOrder($orderId: UUID!) {
-  processOrder(orderId: $orderId) {
+mutation ProcessOrder($orderId: UUID!, $checkout: CheckoutInput!) {
+  processOrder(orderId: $orderId, checkout: $checkout) {
     ...PlacedOrderParts
   }
 }
