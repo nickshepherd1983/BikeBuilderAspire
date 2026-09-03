@@ -110,5 +110,11 @@ public class ChatSmokeTests(BikeBuilderAppFixture fixture)
     await Expect(answer).ToHaveCountAsync(2, new() { Timeout = 240_000 });
     await Expect(answer.Nth(1)).Not.ToContainTextAsync("at most");
     await Expect(answer.Nth(1)).Not.ToContainTextAsync("Could not reach");
+
+    // Close hides the window (the robot button comes back); reopening shows the same chat.
+    await page.GetByRole(AriaRole.Button, new() { Name = "Close assistant" }).ClickAsync();
+    await Expect(sendButton).ToBeHiddenAsync();
+    await openButton.ClickAsync();
+    await Expect(answer).ToHaveCountAsync(2);
   }
 }

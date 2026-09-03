@@ -17,8 +17,9 @@
                 <MudText Typo="Typo.subtitle1" Class="flex-grow-1">Assistant</MudText>
                 <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" Color="Color.Inherit" Size="Size.Small"
                                aria-label="Clear conversation" Disabled="@(_busy || _transcript.Count == 0)" OnClick="Clear" />
-                <MudIconButton Icon="@Icons.Material.Filled.ExpandMore" Color="Color.Inherit" Size="Size.Small"
-                               aria-label="Close assistant" OnClick="ToggleOpen" />
+                @* Closing hides the window; the conversation stays for when it is reopened. *@
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" Size="Size.Small"
+                               aria-label="Close assistant" title="Close" OnClick="ToggleOpen" />
             </div>
 
             @if (_statusFailed)
