@@ -12,6 +12,11 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
+// The proxy copies the backend's X-Trace-Id through; this covers the responses the gateway
+// itself produces (502/504, /healthz). YARP re-injects traceparent from the gateway's own span,
+// so the id is the same one the backend saw.
+app.UseTraceIdResponseHeader();
+
 // A literal endpoint outranks the proxy's catch-all in endpoint routing, so this stays local.
 app.MapGet("/healthz", () => "gateway");
 app.MapDefaultEndpoints();

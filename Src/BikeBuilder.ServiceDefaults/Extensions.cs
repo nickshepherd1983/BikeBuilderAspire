@@ -1,3 +1,4 @@
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -41,6 +43,10 @@ public static class Extensions
 
     builder.AddDefaultHealthChecks();
 
+    // Unhandled exceptions become RFC 7807 responses carrying "traceId" (with UseExceptionHandler
+    // in the app). Harmless for the Functions workers, which never map it.
+    builder.Services.AddProblemDetails();
+
     builder.Services.AddServiceDiscovery();
 
     builder.Services.ConfigureHttpClientDefaults(http =>
@@ -68,6 +74,11 @@ public static class Extensions
       logging.IncludeFormattedMessage = true;
       logging.IncludeScopes = true;
     });
+    // The logger factory already scopes every record with TraceId/SpanId/ParentId (its default
+    // ActivityTrackingOptions); the console formatter just has to print them, so console output
+    // - what the integration tests and CI dump on failure - can be joined to a trace. Configured
+    // rather than AddSimpleConsole so no second sink appears in the Functions workers.
+    builder.Services.Configure<SimpleConsoleFormatterOptions>(options => options.IncludeScopes = true);
 
     builder.Services.AddOpenTelemetry()
         // No ConfigureResource: the AppHost injects OTEL_SERVICE_NAME (the resource name),
@@ -112,6 +123,13 @@ public static class Extensions
 
     if (useOtlpExporter)
       builder.Services.AddOpenTelemetry().UseOtlpExporter();
+
+    // Deployed: infra/resources.bicep injects the App Insights connection string into every
+    // container app and the Function App; the exporter reads it itself. Traces, metrics and logs
+    // all go, with the same trace ids the responses hand back, so a "(ref ...)" from a user finds
+    // the request in App Insights exactly as it does in the local dashboard.
+    if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+      builder.Services.AddOpenTelemetry().UseAzureMonitorExporter();
   }
 
   public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder)

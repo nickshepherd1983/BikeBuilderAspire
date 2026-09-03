@@ -1,11 +1,14 @@
+using BikeBuilder.Contracts.Notifications;
 using BikeBuilder.Contracts.Resilience;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging;
 
 namespace BikeBuilder.Web.Public.Components.Layout;
 
 public partial class ActivityNotificationsConnection(
     ISnackbar _snackbar,
-    INotificationsHubUrlProvider _hubUrl) : IAsyncDisposable
+    INotificationsHubUrlProvider _hubUrl,
+    ILogger<ActivityNotificationsConnection> _logger) : IAsyncDisposable
 {
   HubConnection? _hubConnection;
   CancellationTokenSource? _connectCts;
@@ -27,14 +30,30 @@ public partial class ActivityNotificationsConnection(
 
     // One feed on "ReceiveNotification", already formatted by Web.Public's Service Bus
     // listener: components and bike builds as they're created, plus ratings and orders.
-    _hubConnection.On<string>("ReceiveNotification",
-        message => InvokeAsync(() => _snackbar.Add(message, Severity.Info)));
+    _hubConnection.On<NotificationMessage>("ReceiveNotification",
+        message => InvokeAsync(() => ShowToast(message, Severity.Info)));
 
     // Fire-and-forget with retries: these toasts are a nicety, and this connection now lives
     // in the layout - an exception awaited here would take down every page, not just one.
     // Automatic reconnect only covers drops AFTER a successful start, hence the retry pipeline.
     _connectCts = new CancellationTokenSource();
     _ = ConnectWithRetriesAsync(_hubConnection, _connectCts.Token);
+  }
+
+  // The toast text is unchanged (the integration tests match on it); the originating request's
+  // trace id rides along as a hover title and a log line, so a toast can be traced back to the
+  // order or rating that caused it.
+  void ShowToast(NotificationMessage message, Severity severity)
+  {
+    _logger.LogInformation("Toast {MessageType} received (trace {TraceId})", message.MessageType, message.TraceId);
+    _snackbar.Add(builder =>
+    {
+      builder.OpenElement(0, "span");
+      if (message.TraceId is not null)
+        builder.AddAttribute(1, "title", $"trace {message.TraceId}");
+      builder.AddContent(2, message.Text);
+      builder.CloseElement();
+    }, severity, key: message.Text);
   }
 
   static async Task ConnectWithRetriesAsync(HubConnection hubConnection, CancellationToken cancellationToken)

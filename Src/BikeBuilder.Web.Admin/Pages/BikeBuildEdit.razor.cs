@@ -65,7 +65,7 @@ public partial class BikeBuildEdit(
 
       if (!response.IsSuccessStatusCode)
       {
-        _snackbar.Add("Failed to submit rating.", Severity.Error);
+        _snackbar.Add(ErrorReference.From(response, "Failed to submit rating."), Severity.Error);
         return;
       }
 
@@ -146,7 +146,7 @@ public partial class BikeBuildEdit(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 
@@ -183,7 +183,7 @@ public partial class BikeBuildEdit(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 
@@ -226,7 +226,7 @@ public partial class BikeBuildEdit(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 
@@ -249,7 +249,7 @@ public partial class BikeBuildEdit(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 }

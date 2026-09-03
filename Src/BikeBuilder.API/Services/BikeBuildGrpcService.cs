@@ -65,6 +65,8 @@ public class BikeBuildGrpcService(BikeBuilderDbContext db, IEventPublisher event
 
     db.BikeBuilds.Add(bikeBuild);
     await db.SaveChangesAsync(context.CancellationToken);
+    // The new id on the request span: "which trace created bike build 7" becomes a search.
+    System.Diagnostics.Activity.Current?.SetTag("bikebuilder.bike_build_id", bikeBuild.Id);
 
     await eventPublisher.PublishAsync(ServiceBusMessageTypes.BikeBuildCreated,
         new BikeBuildCreatedEvent

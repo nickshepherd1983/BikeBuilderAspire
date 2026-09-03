@@ -49,7 +49,7 @@ public partial class Checkout(
       var options = await optionsTask;
       _shippingOptions = options.Data?.ShippingOptions ?? [];
       if (options.Errors.Count > 0)
-        _snackbar.Add(options.Errors[0].Message, Severity.Error);
+        _snackbar.Add(options.Errors[0].ToUserMessage(), Severity.Error);
 
       // The name typed at add-to-cart is the natural starting point for the contact block.
       _model.Name = _draft.CustomerName;
@@ -81,8 +81,9 @@ public partial class Checkout(
       {
         // Declined card, expired cart, validation the client missed - the service's message
         // is written for the shopper, so show it as is. The cart is untouched on every one of
-        // these (the service validates before it claims the draft).
-        _snackbar.Add(result.Errors[0].Message, Severity.Error);
+        // these (the service validates before it claims the draft). The "(ref <trace id>)"
+        // suffix is what finds the failed request in the dashboard.
+        _snackbar.Add(result.Errors[0].ToUserMessage(), Severity.Error);
         return;
       }
 

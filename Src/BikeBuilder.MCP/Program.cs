@@ -93,6 +93,10 @@ builder.Services.AddMcpServer(options => options.ServerInfo = new() { Name = "bi
 
 var app = builder.Build();
 
+// Unhandled exceptions become ProblemDetails with a traceId; every response gets X-Trace-Id.
+app.UseExceptionHandler();
+app.UseTraceIdResponseHeader();
+
 if (auth0Authority is not null)
 {
   app.UseAuthentication();

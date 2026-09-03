@@ -1,4 +1,5 @@
 using BikeBuilder.Contracts.Grpc;
+using BikeBuilder.Contracts.Tracing;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -17,9 +18,11 @@ builder.Services.AddMudServices();
 // HttpClientHandler (not SocketsHttpHandler) is the browser-capable handler, and the csproj
 // disables WASM streaming responses - both per the BikeBuilder.Web.Admin precedent.
 var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "http://localhost:7500";
+// TraceContextHandler mints the traceparent each call carries, so the server-side trace starts
+// with the shopper's action rather than at the gateway - see BikeBuilder.Contracts.Tracing.
 builder.Services.AddScoped(_ => GrpcChannel.ForAddress(apiBaseAddress, new GrpcChannelOptions
 {
-  HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()),
+  HttpHandler = new TraceContextHandler { InnerHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()) },
   // Retries Unavailable on the catalog read methods - see CatalogGrpcRetry.
   ServiceConfig = CatalogGrpcRetry.CreateServiceConfig()
 }));
@@ -35,9 +38,14 @@ builder.Services.AddOrdersClient()
     // Trailing slash + relative "graphql": the base address carries the gateway's /orders
     // prefix, and a rooted "/graphql" would replace the whole path rather than append.
     // OrdersClientResilience: connection-failure retries + timeouts, shared with the server half.
+    // The trace handler goes on first (outermost), so one trace id covers every retry.
     .ConfigureHttpClient(
         client => client.BaseAddress = new Uri(new Uri(WithTrailingSlash(ordersApiBaseAddress)), "graphql"),
-        OrdersClientResilience.Configure);
+        clientBuilder =>
+        {
+          clientBuilder.AddHttpMessageHandler(() => new TraceContextHandler());
+          OrdersClientResilience.Configure(clientBuilder);
+        });
 
 builder.Services.AddScoped<OrderState>();
 builder.Services.AddScoped<IOrderIdStorage, BrowserOrderIdStorage>();

@@ -180,6 +180,10 @@ public class OrderSmokeTests(BikeBuilderAppFixture fixture)
     await checkout.FillCardAsync(CheckoutPage.DeclinedCard, buyerName, "12/30", "123");
     await checkout.PlaceOrderAsync();
     await ToastHelper.WaitForToastAsync(storePageRaw, "declined");
+    // The GraphQL error carries the orders service's trace id and the storefront appends it, so
+    // what a shopper reads off the toast is what finds the request in the dashboard.
+    await Expect(storePageRaw.GetByRole(AriaRole.Alert).Filter(new() { HasText = "declined" }))
+        .ToContainTextAsync(new System.Text.RegularExpressions.Regex(@"\(ref [0-9a-f]{32}\)"));
     await Expect(checkout.Confirmation).ToBeHiddenAsync();
 
     // Back on the store page the same cart, with the same item, is still there.

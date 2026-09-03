@@ -130,7 +130,7 @@ public partial class Store(
   {
     if (result.Errors.Count > 0)
     {
-      _snackbar.Add(result.Errors[0].Message, Severity.Error);
+      _snackbar.Add(result.Errors[0].ToUserMessage(), Severity.Error);
       data = null!;
       return false;
     }

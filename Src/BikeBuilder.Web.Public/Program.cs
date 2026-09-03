@@ -13,7 +13,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults(configureTracing: tracing => tracing
     .AddSource("BikeBuilder.Web.Public")              // custom broadcast span in the listener
     .AddSource("Microsoft.AspNetCore.SignalR.Server") // client-invoked hub methods, if any appear
+    // Blazor's circuit, navigation and event-handler spans: on the first-visit server circuit a
+    // button click has no HTTP request of its own, so without these every outbound GraphQL or
+    // gRPC call from an event handler would start a fresh trace.
+    .AddSource("Microsoft.AspNetCore.Components")
+    .AddSource("Microsoft.AspNetCore.Components.Server.Circuits")
 );
+builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(
+    "Microsoft.AspNetCore.Components",
+    "Microsoft.AspNetCore.Components.Lifecycle",
+    "Microsoft.AspNetCore.Components.Server.Circuits"));
 
 // Add services to the container. InteractiveAuto needs both runtimes registered: the first
 // visit interacts over a server circuit while the WebAssembly runtime downloads in the
@@ -103,6 +112,7 @@ else
   app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseTraceIdResponseHeader();
 app.UseHttpsRedirection();
 
 app.UseCors();

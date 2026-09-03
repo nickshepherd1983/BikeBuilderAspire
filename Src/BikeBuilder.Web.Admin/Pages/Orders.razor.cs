@@ -13,7 +13,7 @@ public partial class Orders(OrdersClient _ordersClient, ISnackbar _snackbar)
     }
     catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
     {
-      _snackbar.Add($"Could not load orders: {ex.Message}", Severity.Error);
+      _snackbar.Add(ErrorReference.Format($"Could not load orders: {ex.Message}", ClientTracing.CurrentTraceId), Severity.Error);
     }
     finally
     {

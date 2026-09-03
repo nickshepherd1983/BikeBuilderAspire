@@ -3,6 +3,7 @@ global using System.Net.Http.Json;
 global using BikeBuilder.API.Protos;
 global using BikeBuilder.Contracts.Authorization;
 global using BikeBuilder.Contracts.Components;
+global using BikeBuilder.Contracts.Tracing;
 global using BikeBuilder.Contracts.Types;
 global using BikeBuilder.Web.Admin.Dialogs;
 global using BikeBuilder.Web.Admin.Editors;

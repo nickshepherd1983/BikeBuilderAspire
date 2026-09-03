@@ -1,5 +1,8 @@
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
+using Azure.Core.Serialization;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,8 +18,15 @@ builder.ConfigureFunctionsWebApplication();
 
 // Same convention as the ratings worker: the Functions host already emits the invocation
 // span, so adding AspNetCore instrumentation here would double-report every request.
-builder.AddServiceDefaults(includeAspNetCoreTracing: false);
+builder.AddServiceDefaults(includeAspNetCoreTracing: false,
+    // The consumer spans that put this worker's fan-out and email sends inside the producer's trace.
+    configureTracing: tracing => tracing.AddSource("BikeBuilder.API.Notifications"));
 builder.Services.AddOpenTelemetry().UseFunctionsWorkerDefaults();
+
+// The SignalR output binding serializes the toast envelope with this: camelCase, matching what
+// Web.Public's self-hosted hub sends, so the browser clients bind either source the same way.
+builder.Services.Configure<WorkerOptions>(options =>
+    options.Serializer = new JsonObjectSerializer(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 
 // Which provider delivers the order receipts - see EmailOptions for the selection rules.
 var email = EmailOptions.FromConfiguration(builder.Configuration);

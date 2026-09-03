@@ -17,6 +17,8 @@ public class OrderEmailFunctions(IEmailSender emailSender, ILogger<OrderEmailFun
       CancellationToken cancellationToken)
   {
     var messageType = message.ApplicationProperties.GetValueOrDefault("MessageType") as string;
+    using var scope = MessageScope.Begin(logger, message, messageType);
+
     if (messageType != ServiceBusMessageTypes.OrderConfirmationRequested)
     {
       // Not a transient condition, so returning (which completes the message) beats letting
@@ -26,6 +28,13 @@ public class OrderEmailFunctions(IEmailSender emailSender, ILogger<OrderEmailFun
     }
 
     var order = message.Body.ToObjectFromJson<OrderConfirmationRequestedEvent>()!;
+
+    // Inside the checkout's trace (see MessageScope), so the dashboard shows click -> order ->
+    // queue -> this send -> SMTP/Mailjet as one story.
+    var hasProducer = MessageTraceContext.TryGetProducerContext(message.ApplicationProperties, out var producer);
+    using var activity = MessageScope.StartConsumerActivity(Tracing.Source, "Send order confirmation email", hasProducer, producer);
+    activity?.SetTag("bikebuilder.order_id", order.OrderId);
+
     // Exceptions propagate on purpose: the host abandons the message, Service Bus redelivers
     // it up to the queue's maxDeliveryCount and then dead-letters it.
     await emailSender.SendAsync(OrderConfirmationEmailBuilder.Build(order), cancellationToken);

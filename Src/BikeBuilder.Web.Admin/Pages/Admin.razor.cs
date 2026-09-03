@@ -36,7 +36,7 @@ public partial class Admin(AdminClient _adminClient, IDialogService _dialogServi
     var response = await _adminClient.CreateUserAsync(request);
     if (!response.IsSuccessStatusCode)
     {
-      _snackbar.Add($"Creating the user failed ({(int)response.StatusCode}).", Severity.Error);
+      _snackbar.Add(ErrorReference.From(response, $"Creating the user failed ({(int)response.StatusCode})."), Severity.Error);
       return;
     }
 
@@ -60,7 +60,7 @@ public partial class Admin(AdminClient _adminClient, IDialogService _dialogServi
     var response = await _adminClient.SetRolesAsync(user.Id, roles);
     if (!response.IsSuccessStatusCode)
     {
-      _snackbar.Add($"Updating roles failed ({(int)response.StatusCode}).", Severity.Error);
+      _snackbar.Add(ErrorReference.From(response, $"Updating roles failed ({(int)response.StatusCode})."), Severity.Error);
       return;
     }
 

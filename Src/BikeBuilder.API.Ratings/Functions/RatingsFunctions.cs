@@ -86,6 +86,10 @@ public class RatingsFunctions(Container container, IEventPublisher eventPublishe
       CreatedAt = document.CreatedAt
     }, context.CancellationToken);
 
+    // Business keys on the invocation span, so a trace can be found from a rating or a build.
+    System.Diagnostics.Activity.Current?.SetTag("bikebuilder.rating_id", document.Id);
+    System.Diagnostics.Activity.Current?.SetTag("bikebuilder.bike_build_id", bikeBuildId);
+
     return new CreatedResult($"/api/bikebuilds/{bikeBuildId}/ratings/{document.Id}", document);
   }
 

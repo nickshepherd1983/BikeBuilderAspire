@@ -17,7 +17,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults(
     aspNetCoreTraceFilter: context => context.Request.Path != "/",
-    configureTracing: tracing => tracing.AddSqlClientInstrumentation());
+    configureTracing: tracing => tracing
+        .AddSqlClientInstrumentation()
+        // HotChocolate's request/operation spans - see AddInstrumentation below.
+        .AddSource("HotChocolate.Diagnostics"));
 
 // HotChocolate resolvers can run in parallel, so this deviates from the other apps'
 // AddSqlServerDbContext: register a DbContext FACTORY ourselves, then let Aspire enrich it
@@ -125,7 +128,8 @@ builder.Services.AddAuthorization(options =>
 var webAppOrigins = builder.Configuration.GetSection("WebAppOrigins").Get<string[]>()
     ?? ["https://localhost:7200", "http://localhost:7201"];
 builder.Services.AddCors(options => options.AddPolicy("BlazorWasmClient", policy =>
-    policy.WithOrigins(webAppOrigins).AllowAnyMethod().AllowAnyHeader()));
+    policy.WithOrigins(webAppOrigins).AllowAnyMethod().AllowAnyHeader()
+        .WithExposedHeaders(BikeBuilder.Contracts.Tracing.TraceHeaders.ResponseHeader)));
 
 // Query/Mutation are static classes extending empty root types - the shape HotChocolate
 // expects for static resolver methods.
@@ -135,9 +139,17 @@ builder.AddGraphQL()
     .AddMutationType()
     .AddTypeExtension(typeof(Query))
     .AddTypeExtension(typeof(Mutation))
-    .RegisterDbContextFactory<OrdersDbContext>();
+    .RegisterDbContextFactory<OrdersDbContext>()
+    // Errors carry the trace id; the request span (named after the operation, e.g. processOrder)
+    // sits under "POST /graphql" so the dashboard's trace reads as what happened.
+    .AddErrorFilter<TraceIdErrorFilter>()
+    .AddInstrumentation((Action<InstrumentationOptions>)(options => options.Scopes = ActivityScopes.ExecuteRequest));
 
 var app = builder.Build();
+
+// Unhandled exceptions become ProblemDetails with a traceId; every response gets X-Trace-Id.
+app.UseExceptionHandler();
+app.UseTraceIdResponseHeader();
 
 // Local dev/test only: apply EF migrations at startup, same convention as BikeBuilder.API
 // (production would run migrations as a deploy step). Skipped when no connection string is

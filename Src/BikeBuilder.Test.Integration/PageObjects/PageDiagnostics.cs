@@ -17,7 +17,12 @@ public static class PageDiagnostics
     page.Response += (_, response) =>
     {
       if (response.Status >= 400)
-        Add(messages, $"[response {response.Status}] {response.Request.Method} {response.Url}");
+      {
+        // Every service answers with its W3C trace id (Playwright lowercases header names), so
+        // a failed browser request can be looked up in the apps' logs and the dashboard.
+        var trace = response.Headers.TryGetValue("x-trace-id", out var traceId) ? $" trace={traceId}" : string.Empty;
+        Add(messages, $"[response {response.Status}] {response.Request.Method} {response.Url}{trace}");
+      }
     };
 
     return messages;

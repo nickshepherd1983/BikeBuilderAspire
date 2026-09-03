@@ -7,5 +7,6 @@ global using BikeBuilder.Contracts.Authorization;
 global using BikeBuilder.Contracts.Events;
 global using BikeBuilder.Contracts.Messaging;
 global using HotChocolate;
+global using HotChocolate.Diagnostics;
 global using HotChocolate.Types;
 global using Microsoft.EntityFrameworkCore;

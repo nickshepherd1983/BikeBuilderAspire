@@ -1,3 +1,4 @@
+global using System.Diagnostics;
 global using System.Globalization;
 global using BikeBuilder.API.Notifications.Email;
 global using BikeBuilder.Contracts.Events;

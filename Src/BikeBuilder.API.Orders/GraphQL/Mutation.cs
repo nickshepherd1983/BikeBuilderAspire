@@ -135,6 +135,8 @@ public static class Mutation
 
     db.Orders.Add(order);
     await db.SaveChangesAsync(cancellationToken);
+    // The order number on the request span: "which trace placed order 123" becomes a search.
+    System.Diagnostics.Activity.Current?.SetTag("bikebuilder.order_id", order.Id);
 
     await eventPublisher.PublishAsync(ServiceBusMessageTypes.OrderPlaced, new OrderPlacedEvent
     {

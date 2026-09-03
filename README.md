@@ -432,14 +432,26 @@ the one secret in the stack, passed via `deploy.ps1 -MailjetApiKey/-MailjetSecre
 
 ## Telemetry
 
-Every server app (API, Orders, Web.Public, Ratings, Notifications, MCP, Chat) exports OpenTelemetry traces, metrics, and logs
+Every server app (API, Orders, Web.Public, Ratings, Notifications, MCP, Chat, Gateway) exports OpenTelemetry traces, metrics, and logs
 over OTLP to the Aspire dashboard — open the Traces view to follow a single request across
 API → SQL/Blob → Service Bus → Web.Public → SignalR broadcast, or a checkout across
-Orders → Service Bus → Notifications → SMTP (the Service Bus consumer may
-appear as a linked trace reference rather than a nested span — that's the messaging
-convention, click through it). An assistant question reads as one trace too: chat → the
+Orders → Service Bus → Notifications → SMTP. An assistant question reads as one trace too: chat → the
 model calls (GenAI spans) → each MCP tool call → the service it queried. Telemetry is
-in-memory and resets with the AppHost.
+in-memory and resets with the AppHost; deployed, the same telemetry goes to the App Insights
+instance `infra/` provisions (the Azure Monitor exporter switches on when its connection
+string is present).
+
+**The W3C trace id is the system's correlation id.** It starts in the client — the WASM apps and
+the MAUI app mint a `traceparent` per request (`TraceContextHandler` in `BikeBuilder.Contracts`),
+and the storefront's server circuit parents its calls under Blazor's own event spans — and it comes
+back on every response: the `X-Trace-Id` header from every service and the gateway, a `trace-id`
+trailer on gRPC calls, and a `traceId` extension on GraphQL errors. Error toasts end in
+`(ref <id>)`, so the string a user reads off a failed checkout is exactly what the dashboard's trace
+search takes. Service Bus messages carry the same id as `CorrelationId` (plus a `MessageId`), and
+the consumers parent their work — the hub broadcast, the receipt email — on the producer's trace,
+so a checkout reads as one story from the click to the SMTP send rather than two linked traces.
+The toasts themselves carry it too: hover one and its title shows the originating trace. Console
+log lines print `TraceId`/`SpanId` scopes, which is what the integration tests dump on failure.
 
 ## Tests
 
@@ -452,13 +464,17 @@ builds a bike, rates it, and verifies the component, build and rating toasts lan
 public site; another buys from the storefront as a guest, checks the open cart shows on the
 web app's In Process page and is gone once processed, verifies the order toast on both the
 public site and the signed-in web app, and reads the confirmation email back out of the smtp4dev
-catcher's API; the third exercises the role system — as the Admin it
+catcher's API (its declined-card twin checks the error toast ends in a `(ref <trace id>)`); the third exercises the role system — as the Admin it
 creates an OrderViewer user through the Admin page, signs in as that user in a fresh browser
 context, and checks the nav is trimmed to the order sections and a direct hit on /components
 lands on the "Not authorized" page; the fourth opens the assistant window, checks it reaches its
 backend and stays open when navigating to another page, and — only where Ollama is running, so
 never on CI — asks a question and waits for the model's answer. (The stub user
-`testuser` carries the Admin role, which is why the other tests can touch every surface.)
+`testuser` carries the Admin role, which is why the other tests can touch every surface.) A
+small fifth test posts through the gateway with a `traceparent` and checks the same trace id
+comes back in `X-Trace-Id`. On failure the browser console dump records each failed response's
+trace id, and the per-resource console logs print trace ids on every line, so a failure can be
+followed from the Playwright step into the app that produced it.
 Requires Docker and the
 Azure Functions Core Tools. The Aspire testing host (`Aspire.Hosting.Testing`) runs the same
 AppHost in test mode: fixed 18xxx ports, a stub OIDC issuer instead of Auth0, and

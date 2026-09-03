@@ -57,7 +57,8 @@ builder.Services.AddScoped<ChatService>();
 var webAppOrigins = builder.Configuration.GetSection("WebAppOrigins").Get<string[]>()
     ?? ["https://localhost:7200", "http://localhost:7201"];
 builder.Services.AddCors(options => options.AddPolicy("BlazorWasmClient", policy =>
-    policy.WithOrigins(webAppOrigins).AllowAnyMethod().AllowAnyHeader()));
+    policy.WithOrigins(webAppOrigins).AllowAnyMethod().AllowAnyHeader()
+        .WithExposedHeaders(BikeBuilder.Contracts.Tracing.TraceHeaders.ResponseHeader)));
 
 // The same JWT validation and policy set as BikeBuilder.API - see AuthorizationConstants.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -77,11 +78,11 @@ builder.Services.AddAuthorization(options =>
   foreach (var (name, allowedRoles) in Policies.All)
     options.AddPolicy(name, policy => policy.RequireRole(allowedRoles));
 });
-builder.Services.AddProblemDetails();
-
 var app = builder.Build();
 
+// ProblemDetails (registered by AddServiceDefaults) carry a traceId; every response gets X-Trace-Id.
 app.UseExceptionHandler();
+app.UseTraceIdResponseHeader();
 app.UseCors("BlazorWasmClient");
 app.UseAuthentication();
 app.UseAuthorization();

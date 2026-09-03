@@ -90,6 +90,11 @@ API-key secret in the stack (see [email](#then-email-mailjet)). And **Redis is n
 Azure Cache for Redis has no free tier, so the storefront's draft carts have nowhere to live
 and `ca-bikebuilder-orders` is incomplete until one is added.
 
+Every container app and the Function App receives `APPLICATIONINSIGHTS_CONNECTION_STRING`, and
+the shared service defaults switch the Azure Monitor exporter on when it is present, so the
+telemetry the Aspire dashboard shows locally — traces, metrics, logs, with the same W3C trace
+ids the apps hand back in `X-Trace-Id` and on error toasts — lands in App Insights when deployed.
+
 ## What Bicep cannot do
 
 **Creating a tenant or a subscription is not an ARM operation.** A tenant is a Microsoft
@@ -121,7 +126,7 @@ subscription of its own; you either transfer one in or sign up again from it.
 | Azure SQL | 100k vCore-s + 32 GB per DB, up to 10 DBs | Both databases fit; auto-pauses when exhausted |
 | Cosmos DB | 1000 RU/s + 25 GB | **One free-tier account per subscription** |
 | SignalR Service | 20 connections, 20k messages/day | Free tier is the hard ceiling on concurrent viewers |
-| Log Analytics | 5 GB/month ingest | Capped at 0.5 GB/day here to stay inside it |
+| Log Analytics + App Insights | 5 GB/month ingest | Capped at 0.5 GB/day here to stay inside it. Every app exports OpenTelemetry traces, metrics and logs here (the exporter rate-limits traces to roughly 5/s) |
 | Blob storage | 5 GB for 12 months | Then pennies |
 | **Service Bus** | **none** | No free tier at any SKU. Basic bills $0.05/million operations |
 | Mailjet (external) | 200 emails/day on its free plan | Order receipts only; not an Azure resource |

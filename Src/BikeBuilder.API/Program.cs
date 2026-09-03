@@ -18,7 +18,8 @@ builder.AddServiceDefaults(
     aspNetCoreTraceFilter: context => context.Request.Path != "/",
     configureTracing: tracing => tracing.AddSqlClientInstrumentation());
 
-builder.Services.AddGrpc();
+// The interceptor returns the trace id as a trailer on every call - see TraceIdServerInterceptor.
+builder.Services.AddGrpc(options => options.Interceptors.Add<TraceIdServerInterceptor>());
 
 // Connection strings are injected by the AppHost (WithReference); running standalone still
 // works with a ConnectionStrings:BikeBuilderDb etc. from any config source.
@@ -38,7 +39,11 @@ builder.Services.AddCors(options =>
       policy.WithOrigins(webAppOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .WithExposedHeaders("Grpc-Status", "Grpc-Message", "Grpc-Encoding", "Grpc-Accept-Encoding"));
+            // The trace id travels as a trailer, which a trailers-only error response (an
+            // RpcException before any headers went out) sends as plain HTTP headers - so the
+            // browser has to be allowed to read it, same as the REST endpoints' X-Trace-Id.
+            .WithExposedHeaders("Grpc-Status", "Grpc-Message", "Grpc-Encoding", "Grpc-Accept-Encoding",
+                BikeBuilder.Contracts.Tracing.TraceHeaders.GrpcTrailer, BikeBuilder.Contracts.Tracing.TraceHeaders.ResponseHeader));
 });
 
 // "role" in test mode (the stub issuer's plain claim), the Auth0 namespaced claim otherwise.
@@ -115,6 +120,9 @@ if (app.Environment.IsDevelopment())
   await scope.ServiceProvider.GetRequiredService<BikeBuilderDbContext>().Database.MigrateAsync();
 }
 
+// Unhandled exceptions become ProblemDetails with a traceId; every response gets X-Trace-Id.
+app.UseExceptionHandler();
+app.UseTraceIdResponseHeader();
 app.UseCors("BlazorWasmClient");
 // gRPC-Web unwrapping must happen before authentication reads the request.
 app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });

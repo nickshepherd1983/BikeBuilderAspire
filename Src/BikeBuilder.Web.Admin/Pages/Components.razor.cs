@@ -91,7 +91,7 @@ public partial class Components(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 
@@ -133,7 +133,7 @@ public partial class Components(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 
@@ -155,7 +155,7 @@ public partial class Components(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 
@@ -174,7 +174,7 @@ public partial class Components(
       var response = await _imageClient.UploadAsync(component.Id, file, maxFileSize: 5_000_000);
       if (!response.IsSuccessStatusCode)
       {
-        _snackbar.Add("Failed to upload image.", Severity.Error);
+        _snackbar.Add(ErrorReference.From(response, "Failed to upload image."), Severity.Error);
         return;
       }
 
@@ -204,7 +204,7 @@ public partial class Components(
     var response = await _imageClient.DeleteAsync(component.Id);
     if (!response.IsSuccessStatusCode)
     {
-      _snackbar.Add("Failed to delete image.", Severity.Error);
+      _snackbar.Add(ErrorReference.From(response, "Failed to delete image."), Severity.Error);
       return;
     }
 

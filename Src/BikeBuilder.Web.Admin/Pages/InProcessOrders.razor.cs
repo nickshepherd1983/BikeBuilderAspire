@@ -23,7 +23,7 @@ public sealed partial class InProcessOrders(OrdersClient _ordersClient, ISnackba
     }
     catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
     {
-      _snackbar.Add($"Could not load in process orders: {ex.Message}", Severity.Error);
+      _snackbar.Add(ErrorReference.Format($"Could not load in process orders: {ex.Message}", ClientTracing.CurrentTraceId), Severity.Error);
     }
     finally
     {

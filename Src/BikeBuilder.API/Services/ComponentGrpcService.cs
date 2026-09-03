@@ -70,6 +70,8 @@ public class ComponentGrpcService(BikeBuilderDbContext db, ComponentImageStorage
 
     db.Components.Add(component);
     await db.SaveChangesAsync(context.CancellationToken);
+    // The new id on the request span: "which trace created component 42" becomes a search.
+    System.Diagnostics.Activity.Current?.SetTag("bikebuilder.component_id", component.Id);
 
     await eventPublisher.PublishAsync(ServiceBusMessageTypes.ComponentCreated,
         new ComponentCreatedEvent

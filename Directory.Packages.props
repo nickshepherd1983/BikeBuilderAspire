@@ -43,6 +43,9 @@
     <PackageVersion Include="HotChocolate.AspNetCore" Version="16.6.2" />
     <PackageVersion Include="HotChocolate.AspNetCore.Authorization" Version="16.6.2" />
     <PackageVersion Include="HotChocolate.Data.EntityFramework" Version="16.6.2" />
+    <!-- Resolver/operation spans for the orders GraphQL server, so a "POST /graphql" trace reads
+         as the operation it ran (processOrder). -->
+    <PackageVersion Include="HotChocolate.Diagnostics" Version="16.6.2" />
     <PackageVersion Include="StrawberryShake.Blazor" Version="16.6.2" />
   </ItemGroup>
 
@@ -113,6 +116,8 @@
   </ItemGroup>
 
   <ItemGroup Label="OpenTelemetry">
+    <!-- Production backend: the deployed apps export to the App Insights instance infra/ provisions. -->
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.8.3" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />

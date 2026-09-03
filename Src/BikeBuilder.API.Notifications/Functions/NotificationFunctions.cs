@@ -1,6 +1,5 @@
 using Azure.Messaging.ServiceBus;
-using BikeBuilder.Contracts.Events;
-using BikeBuilder.Contracts.Messaging;
+using BikeBuilder.Contracts.Notifications;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 
@@ -15,8 +14,12 @@ namespace BikeBuilder.API.Notifications.Functions;
 /// pushes this deployment off the Container Apps free grant. As a Service Bus-triggered
 /// Function writing to SignalR in Serverless mode, nothing has to stay awake: the service
 /// holds the client connections, and the Function is billed only per message.
+///
+/// Locally this function is disabled (the AppHost sets AzureWebJobs.BroadcastNotification.Disabled)
+/// and Web.Public's own listener does the same job against its self-hosted hub; the two keep
+/// the same toast text and the same envelope.
 /// </summary>
-public class NotificationFunctions
+public class NotificationFunctions(ILogger<NotificationFunctions> logger)
 {
   public const string HubName = "notifications";
 
@@ -32,10 +35,12 @@ public class NotificationFunctions
 
   [Function("BroadcastNotification")]
   [SignalROutput(HubName = HubName)]
-  public static SignalRMessageAction[] BroadcastNotification(
+  public SignalRMessageAction[] BroadcastNotification(
       [ServiceBusTrigger(ServiceBusQueueNames.Notifications, Connection = "servicebus")] ServiceBusReceivedMessage message)
   {
     var messageType = message.ApplicationProperties.GetValueOrDefault("MessageType") as string;
+    using var scope = MessageScope.Begin(logger, message, messageType);
+    var hasProducer = MessageTraceContext.TryGetProducerContext(message.ApplicationProperties, out var producer);
 
     var text = messageType switch
     {
@@ -53,12 +58,19 @@ public class NotificationFunctions
     if (text is null)
       return [];
 
-    var broadcast = new SignalRMessageAction("ReceiveNotification", [text]);
+    // The SignalR output binding produces no span of its own; this one sits inside the
+    // producer's trace (see MessageScope) so the fan-out shows up under the checkout.
+    using var activity = MessageScope.StartConsumerActivity(Tracing.Source, "SignalR Service broadcast", hasProducer, producer);
+    activity?.SetTag("bikebuilder.message_type", messageType);
+
+    var traceId = hasProducer ? producer.TraceId.ToHexString() : activity?.TraceId.ToHexString();
+    var envelope = new NotificationMessage(text, messageType!, traceId);
+    var broadcast = new SignalRMessageAction("ReceiveNotification", [envelope]);
 
     // Order events additionally go out on a dedicated method so clients that only care
     // about orders (the authenticated WASM app) don't have to string-match the feed.
     return messageType == ServiceBusMessageTypes.OrderPlaced
-        ? [broadcast, new SignalRMessageAction("ReceiveOrderNotification", [text])]
+        ? [broadcast, new SignalRMessageAction("ReceiveOrderNotification", [envelope])]
         : [broadcast];
   }
 

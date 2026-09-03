@@ -117,7 +117,7 @@ public partial class BikeBuilds(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 
@@ -139,7 +139,7 @@ public partial class BikeBuilds(
     }
     catch (RpcException ex)
     {
-      _snackbar.Add(ex.Status.Detail, Severity.Error);
+      _snackbar.Add(ErrorReference.From(ex), Severity.Error);
     }
   }
 }

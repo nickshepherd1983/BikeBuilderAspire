@@ -1,4 +1,5 @@
 using BikeBuilder.Contracts.Grpc;
+using BikeBuilder.Contracts.Tracing;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
 using Microsoft.Extensions.Logging;
@@ -28,9 +29,10 @@ public static class MauiProgram
     // fronts gRPC-Web over HTTP/1.1, so one wire format serves every client. HTTP/1.1
     // exactly, same as BikeBuilder.Web.Public's server half: a native handler defaults gRPC
     // to HTTP/2, and the gateway's plaintext endpoint answers that with HTTP_1_1_REQUIRED.
+    // TraceContextHandler mints the traceparent each call carries - see BikeBuilder.Contracts.Tracing.
     builder.Services.AddScoped(_ => GrpcChannel.ForAddress(AppEnvironment.ApiBaseAddress, new GrpcChannelOptions
     {
-      HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()),
+      HttpHandler = new TraceContextHandler { InnerHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()) },
       HttpVersion = System.Net.HttpVersion.Version11,
       HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
       // Retries Unavailable on the catalog read methods - see CatalogGrpcRetry. Matters more
@@ -45,10 +47,15 @@ public static class MauiProgram
     // slash + relative "graphql": the base address carries the gateway's /orders prefix,
     // and a rooted "/graphql" would replace the whole path rather than append.
     // OrdersClientResilience: connection-failure retries + timeouts, shared with the web heads.
+    // The trace handler goes on first (outermost), so one trace id covers every retry.
     builder.Services.AddOrdersClient()
         .ConfigureHttpClient(
             client => client.BaseAddress = new Uri(new Uri(WithTrailingSlash(AppEnvironment.OrdersApiBaseAddress)), "graphql"),
-            OrdersClientResilience.Configure);
+            clientBuilder =>
+            {
+              clientBuilder.AddHttpMessageHandler(() => new TraceContextHandler());
+              OrdersClientResilience.Configure(clientBuilder);
+            });
 
     builder.Services.AddScoped<OrderState>();
     builder.Services.AddScoped<IOrderIdStorage, PreferencesOrderIdStorage>();

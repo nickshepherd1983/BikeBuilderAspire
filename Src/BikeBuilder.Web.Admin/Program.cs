@@ -68,7 +68,9 @@ builder.Services.AddScoped(sp =>
   var isHttps = apiUri.Scheme == Uri.UriSchemeHttps;
   return GrpcChannel.ForAddress(apiUri, new GrpcChannelOptions
   {
-    HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()),
+    // TraceContextHandler mints the traceparent each call carries, so the server-side trace
+    // starts with the user's click rather than at the gateway - see BikeBuilder.Contracts.Tracing.
+    HttpHandler = new TraceContextHandler { InnerHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()) },
     Credentials = isHttps
         ? ChannelCredentials.Create(new SslCredentials(), callCredentials)
         : ChannelCredentials.Create(ChannelCredentials.Insecure, callCredentials),
@@ -116,6 +118,7 @@ builder.Services.AddHttpClient<ChatClient>(client =>
     })
     .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
         .ConfigureHandler(authorizedUrls: [chatApiBaseAddress]))
+    .AddHttpMessageHandler(() => new TraceContextHandler())
     .AddStandardResilienceHandler(options =>
     {
       options.Retry.DisableForUnsafeHttpMethods();
@@ -129,10 +132,12 @@ await builder.Build().RunAsync();
 static string WithTrailingSlash(string address) => address.EndsWith('/') ? address : address + "/";
 
 // A typed client whose requests carry the user's access token (the documented Blazor WASM
-// pattern: AuthorizationMessageHandler resolved from the handler's own scope) plus the
-// standard resilience handler with unsafe-method retries disabled.
+// pattern: AuthorizationMessageHandler resolved from the handler's own scope), the W3C trace
+// context (TraceContextHandler, ahead of the resilience handler so one trace id covers every
+// retry), and the standard resilience handler with unsafe-method retries disabled.
 void AddAuthorizedClient<TClient>(string baseAddress, string authorizedUrl) where TClient : class =>
     builder.Services.AddHttpClient<TClient>(client => client.BaseAddress = new Uri(baseAddress))
         .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
             .ConfigureHandler(authorizedUrls: [authorizedUrl]))
+        .AddHttpMessageHandler(() => new TraceContextHandler())
         .AddStandardResilienceHandler(options => options.Retry.DisableForUnsafeHttpMethods());
