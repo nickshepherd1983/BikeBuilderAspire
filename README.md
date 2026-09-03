@@ -198,7 +198,10 @@ mobile app is launched separately and simply points at the AppHost's endpoints.
 
 Prerequisites: Docker Desktop, the .NET 10 SDK, and
 [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
-≥ 4.0.6280 (Aspire launches the two Functions apps through `func start`).
+≥ 4.0.6280 (Aspire launches the two Functions apps through `func start`). Visual Studio puts its
+own bundled Core Tools first on the PATH of anything it launches (F5, Test Explorer), and that copy
+can lag far enough behind to be unable to host the notifications worker - so the AppHost prefers
+the machine-wide install under `Program Files` whenever it finds one.
 
 ```powershell
 dotnet run --project Src/BikeBuilder.AppHost

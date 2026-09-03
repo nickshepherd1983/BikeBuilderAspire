@@ -230,6 +230,7 @@ var ratings = builder.AddAzureFunctionsProject<Projects.BikeBuilder_API_Ratings>
     // responds 200 long before the worker is ready - don't probe that.)
     .WithHttpHealthCheck("/api/bikebuilds/warmup/ratings");
 WithWebAppOrigins(ratings);
+WithInstalledCoreTools(ratings);
 if (isTest)
 {
   ratings.WithEndpoint("http", endpoint => endpoint.Port = 18500)
@@ -272,6 +273,7 @@ var notifications = builder.AddAzureFunctionsProject<Projects.BikeBuilder_API_No
     // the host's "/" is up long before the worker (and its Service Bus trigger) is.
     .WithHttpHealthCheck("/api/health");
 notifications.WithEndpoint("http", endpoint => endpoint.Port = isTest ? 18950 : 7072);
+WithInstalledCoreTools(notifications);
 
 var webPublic = builder.AddProject<Projects.BikeBuilder_Web_Public>("web-public",
         options => options.ExcludeLaunchProfile = isTest)
@@ -434,4 +436,21 @@ void WithStorefrontOrigins<T>(IResourceBuilder<T> resource) where T : IResourceW
     context.EnvironmentVariables["WebAppOrigins__2"] = webPublic.GetEndpoint("https");
     context.EnvironmentVariables["WebAppOrigins__3"] = webPublic.GetEndpoint("http");
   });
+}
+
+// The Functions Worker SDK's `dotnet run` starts whichever `func` is first on PATH. Visual
+// Studio puts its own bundled Core Tools (%LOCALAPPDATA%\AzureFunctionsTools) first for
+// everything it launches - Test Explorer, F5 - and that copy lags the machine-wide install
+// badly: its host can't load the .NET 10 assemblies the notifications worker's Service Bus and
+// SignalR extensions need, so the resource died at startup only when the tests ran from VS.
+// Prefer the machine-wide install (the winget/MSI location) whenever one exists; elsewhere
+// (CI, a machine without it) PATH is left alone.
+void WithInstalledCoreTools<T>(IResourceBuilder<T> resource) where T : IResourceWithEnvironment
+{
+  var installed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Azure Functions Core Tools");
+  if (!Directory.Exists(installed))
+    return;
+
+  var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+  resource.WithEnvironment("PATH", installed + Path.PathSeparator + path);
 }
