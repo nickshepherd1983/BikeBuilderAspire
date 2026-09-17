@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="TngTech.ArchUnitNET" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnit" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- The assemblies the rules run over. Left out on purpose: the AppHost (orchestration, not
+       app code), the Gateway (a YARP config with no types of its own), the mobile app (needs
+       the MAUI workloads and renders the shared storefront verbatim), and the storefront's
+       server/WebAssembly hosts (composition roots whose conventions the shared storefront
+       project already carries). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Src\BikeBuilder.API\BikeBuilder.API.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.API.Chat\BikeBuilder.API.Chat.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.API.Notifications\BikeBuilder.API.Notifications.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.API.Orders\BikeBuilder.API.Orders.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.API.Ratings\BikeBuilder.API.Ratings.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.Contracts\BikeBuilder.Contracts.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.DataSeeder\BikeBuilder.DataSeeder.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.MCP\BikeBuilder.MCP.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.ServiceDefaults\BikeBuilder.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.Web.Admin\BikeBuilder.Web.Admin.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.Web.Public.Shared\BikeBuilder.Web.Public.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

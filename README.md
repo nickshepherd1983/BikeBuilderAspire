@@ -29,6 +29,7 @@ guest-checkout storefront, and watch activity land in real time on a public site
 | `BikeBuilder.Gateway` | YARP stand-in for the API gateway: serves the gateway port with the same routes as the Azure API Management APIs whenever no APIM connection is configured (CI, or a dev machine without the `Apim:*` user secrets) |
 | `BikeBuilder.Contracts` | Shared event/message contracts |
 | `BikeBuilder.DataSeeder` | Console tool that fills the local dev stack with 1000+ real-sounding components, 100 bike builds, and 1–30 ratings each |
+| `BikeBuilder.Test.Architecture` | [ArchUnitNET](https://github.com/TNG/ArchUnitNET) rules over the built assemblies: services stay isolated bounded contexts, browser-hosted code stays free of server-only stacks, events live in Contracts, and the Functions / MCP / gRPC / EF naming and placement conventions hold. Runs in seconds, nothing to start |
 | `BikeBuilder.Test.Integration` | End-to-end smoke tests: the Aspire testing host boots the whole system (with a stub OIDC issuer standing in for Auth0) and Playwright drives the real UI, recording video |
 
 ## Architecture
@@ -188,6 +189,9 @@ flowchart LR
 A solid arrow means "references"; an arrow into the Shared box means the project references
 both shared projects. Dashed arrows are **not** project references — those four compile
 `BikeBuilder.API`'s `.proto` files as gRPC *clients* through linked `<Protobuf>` items.
+`BikeBuilder.Test.Architecture` is left off the diagram: it references every service, the two
+shared libraries, the seeder and both front-end libraries purely to load their assemblies, and
+its rules are what keep the arrows above the only ones there are.
 
 Two absences are deliberate. `BikeBuilder.Web.Admin` references `Contracts` but not `ServiceDefaults`
 — a WebAssembly app has no server host to configure. And the AppHost does not reference
@@ -461,8 +465,39 @@ log lines print `TraceId`/`SpanId` scopes, which is what the integration tests d
 ## Tests
 
 ```powershell
-dotnet test Src/BikeBuilder.Test.Integration
+dotnet test Tests/BikeBuilder.Test.Architecture   # seconds, nothing to start
+dotnet test Tests/BikeBuilder.Test.Integration    # the whole stack, see below
 ```
+
+### Architecture tests
+
+`BikeBuilder.Test.Architecture` runs [ArchUnitNET](https://github.com/TNG/ArchUnitNET) rules
+over the built assemblies — the conventions this README describes, checked on every CI build
+before the slow suite starts. One test class per concern:
+
+- **Bounded contexts** — the six services (`API`, `Orders`, `Ratings`, `Notifications`, `Chat`,
+  `MCP`) never depend on each other's types; `Contracts` depends on nothing else in the
+  solution and `ServiceDefaults` on nothing in it at all; the two front ends reach the services
+  only over the wire and not each other.
+- **Browser-hosted code** — `Web.Admin` and the shared storefront stay free of EF Core, Cosmos,
+  the Azure SDKs, `ServiceDefaults` and server-side ASP.NET Core; the storefront also stays free
+  of WebAssembly- and MAUI-specific APIs because it renders on server circuits, in the browser
+  and in the mobile shell alike.
+- **Messaging** — every `*Event` is a sealed record in `BikeBuilder.Contracts.Events`, and only
+  `*Publisher` classes hold a Service Bus client or sender.
+- **Service conventions** — `[Function]` entry points are public methods of `*Function(s)`
+  classes in a `Functions` namespace; `[McpServerToolType]` classes are `*Tools` in
+  `BikeBuilder.MCP.Tools` and every `[McpServerTool]` method sits in one of them (the server
+  silently skips any other); gRPC service implementations are `*GrpcService` in
+  `BikeBuilder.API.Services`; `DbContext`s are `*DbContext` in a `Data` namespace; entities
+  never depend on gRPC, ASP.NET Core or Azure types; `*Endpoints` classes are static.
+
+Each rule names the violating types when it fails, so a new project or a stray `using` fails
+the build with a sentence saying which boundary it crossed. The top-level `Program` classes and
+the per-project gRPC stubs share full names across assemblies, which ArchUnitNET keys types by,
+so the dependency rules exclude both on either side (see `OwnTypesOf`).
+
+### Integration tests
 
 Four end-to-end tests cover the whole journey: one logs in, creates a component with an image,
 builds a bike, rates it, and verifies the component, build and rating toasts land live on the

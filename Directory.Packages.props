@@ -131,6 +131,10 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.62.0" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.33.0.1635" />
+    <!-- Architecture tests (Tests/BikeBuilder.Test.Architecture): the fluent rules and the xUnit
+         adapter whose Check() reports every violation as one assertion failure. -->
+    <PackageVersion Include="TngTech.ArchUnitNET" Version="0.13.4" />
+    <PackageVersion Include="TngTech.ArchUnitNET.xUnit" Version="0.13.4" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>

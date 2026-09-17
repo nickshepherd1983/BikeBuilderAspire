@@ -30,6 +30,12 @@ jobs:
       - name: Build solution
         run: dotnet build BikeBuilder.slnx
 
+      # ArchUnitNET rules over the assemblies the build just produced: bounded contexts stay
+      # isolated, browser-hosted projects stay free of server-only dependencies, and the
+      # Functions / MCP / gRPC / EF conventions hold. No containers, seconds to run.
+      - name: Run architecture tests
+        run: dotnet test Tests/BikeBuilder.Test.Architecture --no-build --logger "console;verbosity=minimal"
+
   integration-test:
     needs: build
     runs-on: ubuntu-latest
@@ -65,13 +71,13 @@ jobs:
           echo "$HOME/func-cli" >> "$GITHUB_PATH"
 
       - name: Build test project
-        run: dotnet build Src/BikeBuilder.Test.Integration
+        run: dotnet build Tests/BikeBuilder.Test.Integration
 
       - name: Install Playwright browsers
-        run: pwsh Src/BikeBuilder.Test.Integration/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
+        run: pwsh Tests/BikeBuilder.Test.Integration/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
 
       - name: Run integration tests
-        run: dotnet test Src/BikeBuilder.Test.Integration --no-build --logger "console;verbosity=minimal"
+        run: dotnet test Tests/BikeBuilder.Test.Integration --no-build --logger "console;verbosity=minimal"
 
       # The Aspire testing host tears containers down on success; whatever is still here
       # after a failure is what the fixture was stuck waiting on.
@@ -104,5 +110,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: Src/BikeBuilder.Test.Integration/bin/Debug/net10.0/TestResults/
+          path: Tests/BikeBuilder.Test.Integration/bin/Debug/net10.0/TestResults/
           if-no-files-found: ignore

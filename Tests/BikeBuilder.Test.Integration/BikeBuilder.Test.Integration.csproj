@@ -21,9 +21,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BikeBuilder.API\BikeBuilder.API.csproj" />
-    <ProjectReference Include="..\BikeBuilder.AppHost\BikeBuilder.AppHost.csproj" />
-    <ProjectReference Include="..\BikeBuilder.DataSeeder\BikeBuilder.DataSeeder.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.API\BikeBuilder.API.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.AppHost\BikeBuilder.AppHost.csproj" />
+    <ProjectReference Include="..\..\Src\BikeBuilder.DataSeeder\BikeBuilder.DataSeeder.csproj" />
   </ItemGroup>
 
   <ItemGroup>
